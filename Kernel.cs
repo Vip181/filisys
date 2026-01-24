@@ -13,6 +13,7 @@ namespace filesys
     public class Kernel : Sys.Kernel
     {
         // ================= SYSTEM =================
+        Window aboutWindow;
         Window consoleWindow;
      public static  Canvas canvass;
 
@@ -47,8 +48,8 @@ namespace filesys
 
             // ✅ CRÉATION UNIQUE DE LA CONSOLE
             consoleWindow = new ConsoleWindow();
-
-          System.Console.WriteLine("GRAPHICS OK");
+            aboutWindow = new About();
+            System.Console.WriteLine("GRAPHICS OK");
         }
 
         protected override void Run()
@@ -61,7 +62,8 @@ namespace filesys
             // ✅ UPDATE AVANT DRAW
             consoleWindow.Update();
             consoleWindow.Draw(canvass);
-
+            aboutWindow.Update();
+            aboutWindow.Draw(canvass);
             // ✅ CURSEUR EN DERNIER
             filesys.CustomMouse.Draw(canvass);
 
