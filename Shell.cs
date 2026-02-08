@@ -45,10 +45,7 @@ namespace filesys
                     return "Format: res <width> <height>";
                 case "help":
                     return "help, mem, clear, echo";
-
-                case "mem":
-                    return "RAM used: " + MemoryManager.UsedMemory();
-
+                       
                 case "echo":
                     return cmd.Substring(5);
 
