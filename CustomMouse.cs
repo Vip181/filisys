@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace filesys
@@ -12,6 +13,10 @@ namespace filesys
     public static class CustomMouse
     {
         public static CursorStyle CurrentStyle = CursorStyle.Arrow;
+
+        // Ajout des champs statiques pour X et Y
+        public static int X { get; private set; }
+        public static int Y { get; private set; }
 
         public static void Draw(Canvas canvas)
         {
@@ -58,5 +63,8 @@ namespace filesys
         {
             canvas.DrawFilledRectangle(pen, x, y, 8, 8);
         }
+
+
     }
 }
+
