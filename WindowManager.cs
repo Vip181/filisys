@@ -1,63 +1,40 @@
-﻿using Cosmos.System;
-using Cosmos.System.Graphics;
-using filesys.GUI;
-namespace filesys
+﻿using Cosmos.System.Graphics;
+using System.Collections.Generic;
+
+namespace filesys.GUI
 {
-    static class WindowManager
+    public class WindowManager
     {
-        static Window[] windows = new Window[10];
-        static int count = 0;
+        private List<BaseWindow> windows = new List<BaseWindow>();
 
-        static Window focused;
-
-        public static void Add(Window win)
+        public void Add(BaseWindow window)
         {
-            if (count < windows.Length)
-                windows[count++] = win;
+            windows.Add(window);
         }
 
-        public static void Update()
+        public void Update()
         {
-            int mx = (int)MouseManager.X;
-            int my = (int)MouseManager.Y;
-
-            // gestion du focus (clic sur barre de titre)
-            if (MouseManager.MouseState == MouseState.Left)
+            foreach (var w in windows.ToArray())
             {
-                for (int i = count - 1; i >= 0; i--)
+                filesys.System.SafeExecutor.Execute(() =>
                 {
-                    if (windows[i].IsInTitleBar(mx, my))
-                    {
-                        focused = windows[i];
-                        BringToFront(i);
-                        break;
-                    }
-                }
-            }
+                    w.Update();
+                });
 
-            // update toutes les fenêtres
-            for (int i = 0; i < count; i++)
-            {
-                windows[i].Update();
+                if (w.IsClosed)
+                    windows.Remove(w);
             }
         }
 
-        public static void Draw(Canvas canvas)
+        public void Draw(Canvas canvas)
         {
-            for (int i = 0; i < count; i++)
+            foreach (var w in windows)
             {
-                windows[i].Draw(canvas);
+                filesys.System.SafeExecutor.Execute(() =>
+                {
+                    w.Draw(canvas);
+                });
             }
-        }
-
-        static void BringToFront(int index)
-        {
-            Window w = windows[index];
-
-            for (int i = index; i < count - 1; i++)
-                windows[i] = windows[i + 1];
-
-            windows[count - 1] = w;
         }
     }
 }

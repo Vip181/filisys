@@ -33,7 +33,7 @@ namespace filesys
 
                             // 2️⃣ Mettre à jour le canvas utilisé par le Kernel
                             // Attention : canvas est une variable globale dans Kernel
-                           filesys.Kernel.canvass = ScreenManager.Canvas;
+                           
 
                             // 3️⃣ Sauvegarde dans le fichier
                            
