@@ -16,7 +16,10 @@ namespace filesys
         private List<BaseWindow> windows = new List<BaseWindow>();
 
         public static Kernel Instance;
-
+        public List<BaseWindow> GetWindows()
+        {
+            return windows;
+        }
         protected override void BeforeRun()
         {
             Instance = this;

@@ -6,7 +6,7 @@ namespace filesys.Input
     {
         public static bool CapsLockEnabled = false;
 
-        public static char Convert(char keyChar, bool shift)
+        public static char Convert(ConsoleKeyEx key, char keyChar, bool shift)
         {
             if (keyChar == '\0') return '\0';
 

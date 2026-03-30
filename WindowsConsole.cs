@@ -1,10 +1,11 @@
-﻿using System;
-using System.IO;
-using Cosmos.System;
+﻿using Cosmos.System;
 using Cosmos.System.Graphics;
 using Cosmos.System.Graphics.Fonts;
 using filesys.System; // Pour accéder à ProcessMemoryManager
+using System;
 using System.Drawing;
+using System.IO;
+using System.Net;
 
 namespace filesys.GUI
 {
@@ -90,6 +91,33 @@ namespace filesys.GUI
                 {
                     buffer.WriteLine("Shutting down...");
                     Cosmos.System.Power.Shutdown();
+                }
+             
+
+                    else if (parts[0] == "kill" && parts.Length == 2)
+                {
+                    string target = parts[1].ToLower();
+                    bool found = false;
+
+                    // On récupère la liste des fenêtres depuis le Kernel
+                    // Note: Utilise 'Kernel.Instance.windows' si tu l'as mis en public, 
+                    // sinon crée une méthode 'GetWindows()' dans ton Kernel.
+                    var allWindows = Kernel.Instance.GetWindows();
+
+                    for (int i = 0; i < allWindows.Count; i++)
+                    {
+                        // On compare le titre de la fenêtre (en minuscule) avec l'argument
+                        if (allWindows[i].Title.ToLower().Contains(target))
+                        {
+                            // On marque la fenêtre comme fermée
+                            // Le Kernel la supprimera automatiquement au prochain Update()
+                            allWindows[i].IsClosed = true;
+                            buffer.WriteLine("Processus '" + allWindows[i].Title + "' arrete.");
+                            found = true;
+                        }
+                    }
+
+                    if (!found) buffer.WriteLine("Aucune fenetre trouvee pour : " + target);
                 }
                 else if (cmd == "clear")
                 {
