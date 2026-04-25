@@ -4,7 +4,6 @@ using Cosmos.System.Graphics.Fonts;
 using System;
 using System.IO;
 using System.Drawing;
-using filesys.System;
 
 namespace filesys.GUI
 {
@@ -12,24 +11,45 @@ namespace filesys.GUI
     {
         private string filePath;
         private string fileContent = "";
+
         private Button saveButton;
+        private Button deleteButton;
+
         private bool isModified = false;
+        private bool confirmDelete = false;
 
-        public FileViewer(string filename, int x, int y) : base("Editor: " + filename, x, y, 400, 350)
+        public FileViewer(string filename, int x, int y)
+            : base("Editor: " + filename, x, y, 400, 350)
         {
-            this.filePath = @"0:\" + filename;
+            filePath = @"0:\" + filename;
 
-            // Bouton de sauvegarde en bas de la fenêtre
-            saveButton = new Button(X + Width - 80, Y + Height - 25, 70, 20, "Save", SaveFile);
+            saveButton = new Button(
+                X + Width - 80,
+                Y + Height - 25,
+                70,
+                20,
+                "Save",
+                SaveFile
+            );
 
-            LoadFileSafe();
+            deleteButton = new Button(
+                X + 10,
+                Y + Height - 25,
+                70,
+                20,
+                "Delete",
+                AskDelete
+            );
+
+            LoadFile();
         }
 
-        private void LoadFileSafe()
+        private void LoadFile()
         {
             try
             {
-                if (File.Exists(filePath)) fileContent = File.ReadAllText(filePath);
+                if (File.Exists(filePath))
+                    fileContent = File.ReadAllText(filePath);
             }
             catch { fileContent = ""; }
         }
@@ -39,10 +59,47 @@ namespace filesys.GUI
             try
             {
                 File.WriteAllText(filePath, fileContent);
+                ExecuteDelte();
                 isModified = false;
                 Title = "Editor: " + Path.GetFileName(filePath);
             }
-            catch { /* Gérer erreur */ }
+            catch { }
+        }
+
+        private void ExecuteDelte()
+        {
+            string del = @"0:\delte";
+            if (!File.Exists(del)) return;
+
+            try
+            {
+                string cmd = File.ReadAllText(del).Trim();
+                if (cmd.StartsWith("delete file "))
+                {
+                    string target = cmd.Replace("delete file ", "");
+                    string path = @"0:\" + target;
+                    if (File.Exists(path)) File.Delete(path);
+                }
+                File.Delete(del);
+            }
+            catch { }
+        }
+
+        private void AskDelete()
+        {
+            if (!confirmDelete)
+            {
+                confirmDelete = true;
+                return;
+            }
+
+            try
+            {
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+                IsClosed = true;
+            }
+            catch { }
         }
 
         public override void Update()
@@ -50,38 +107,26 @@ namespace filesys.GUI
             base.Update();
             if (IsMinimized || IsClosed) return;
 
-            // Mise à jour de la position du bouton si on déplace la fenêtre
             saveButton.X = X + Width - 80;
             saveButton.Y = Y + Height - 25;
+            deleteButton.X = X + 10;
+            deleteButton.Y = Y + Height - 25;
+
             saveButton.Update();
+            deleteButton.Update();
 
-            // GESTION DU CLAVIER (Uniquement si cette fenêtre est active/focus)
-            // Note: Dans le Kernel, vous devrez vérifier si cette fenêtre est celle du dessus
-            KeyEvent key;
-            if (KeyboardManager.TryReadKey(out key))
+            if (KeyboardManager.TryReadKey(out var key))
             {
-                HandleKeyboard(key);
-            }
-        }
-
-        private void HandleKeyboard(KeyEvent key)
-        {
-            if (key.Key == ConsoleKeyEx.Backspace)
-            {
-                if (fileContent.Length > 0)
+                if (key.Key == ConsoleKeyEx.Backspace && fileContent.Length > 0)
                     fileContent = fileContent.Substring(0, fileContent.Length - 1);
-            }
-            else if (key.Key == ConsoleKeyEx.Enter)
-            {
-                fileContent += "\n";
-            }
-            else if (char.IsLetterOrDigit(key.KeyChar) || char.IsPunctuation(key.KeyChar) || key.KeyChar == ' ')
-            {
-                fileContent += key.KeyChar;
-            }
+                else if (key.Key == ConsoleKeyEx.Enter)
+                    fileContent += "\n";
+                else if (key.KeyChar >= 32)
+                    fileContent += key.KeyChar;
 
-            isModified = true;
-            Title = "Editor: " + Path.GetFileName(filePath) + "*";
+                isModified = true;
+                Title = "Editor: " + Path.GetFileName(filePath) + "*";
+            }
         }
 
         public override void Draw(Canvas canvas)
@@ -89,21 +134,41 @@ namespace filesys.GUI
             if (IsMinimized || IsClosed) return;
             base.Draw(canvas);
 
-            // Zone d'édition
-            canvas.DrawFilledRectangle(new Pen(Color.White), X + 5, Y + 35, Width - 10, Height - 65);
+            canvas.DrawFilledRectangle(
+                new Pen(Color.White),
+                X + 5,
+                Y + 35,
+                Width - 10,
+                Height - 65
+            );
 
-            // Affichage du texte
-            string[] lines = fileContent.Split('\n');
-            int yOffset = Y + 40;
-            foreach (var line in lines)
+            int y = Y + 40;
+            foreach (var line in fileContent.Split('\n'))
             {
-                if (yOffset > Y + Height - 40) break;
-                canvas.DrawString(line, PCScreenFont.Default, new Pen(Color.Black), X + 10, yOffset);
-                yOffset += 16;
+                if (y > Y + Height - 40) break;
+                canvas.DrawString(
+                    line,
+                    PCScreenFont.Default,
+                    new Pen(Color.Black),
+                    X + 10,
+                    y
+                );
+                y += 16;
             }
 
-            // Dessiner le bouton Save
             saveButton.Draw(canvas);
+            deleteButton.Draw(canvas);
+
+            if (confirmDelete)
+            {
+                canvas.DrawString(
+                    "Click Delete again to confirm",
+                    PCScreenFont.Default,
+                    new Pen(Color.Red),
+                    X + 90,
+                    Y + Height - 22
+                );
+            }
         }
     }
 }
