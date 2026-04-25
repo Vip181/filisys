@@ -17,17 +17,24 @@ namespace filesys
         public static Kernel Instance;
         public static WindowManager WindowMgr;
         private Canvas canvas;
-
+        public static DesktopManager Desktop;
         public List<BaseWindow> windows = new List<BaseWindow>();
 
         private bool menuOpen = false;
         private int menuWidth = 200;
-        private int menuHeight = 350;
+        private int menuHeight = 380;
 
-        // Confirmation shutdown
+        // 🌗 THÈME
+        private bool darkTheme = false;
+
+        // 🔔 confirmation power
         private bool confirmPower = false;
         private bool confirmShutdown = true;
-       
+
+        // 📦 Confirm box size
+        private const int ConfirmWidth = 220;
+        private const int ConfirmHeight = 80;
+
         public List<BaseWindow> GetWindows() => windows;
         protected override void BeforeRun()
         {
@@ -43,19 +50,37 @@ namespace filesys
             VFSManager.RegisterVFS(fs);
 
             AddWindow(new WindowsConsole(100, 100));
+            Desktop = new DesktopManager();
+            Desktop.Refresh();
         }
 
         protected override void Run()
         {
             UpdateSystem();
 
-            canvas.Clear(Color.CornflowerBlue);
+            canvas.Clear(darkTheme ? Color.FromArgb(20, 20, 20) : Color.CornflowerBlue);
+            Desktop.Update();
+            Desktop.Draw(canvas);
             WindowMgr.Draw(canvas);
 
-            if (menuOpen) DrawStartMenu();
+            // 🌫️ blur derrière la combox
+            if (confirmPower)
+                DrawBackgroundBlur();
+
+            if (menuOpen)
+                DrawStartMenu();
+
+            // ✅ combox dessinée même si le menu est fermé
+            if (confirmPower)
+            {
+                int screenHeight = (int)canvas.Mode.Rows;
+                int taskbarY = screenHeight - 30;
+                int menuY = taskbarY - menuHeight;
+                DrawConfirmBox(menuY);
+            }
+
             DrawTaskbar();
 
-            // Curseur souris
             canvas.DrawFilledRectangle(
                 new Pen(Color.White),
                 (int)MouseManager.X,
@@ -67,8 +92,6 @@ namespace filesys
             canvas.Display();
             Cosmos.Core.Memory.Heap.Collect();
         }
-
-        public void AddWindow(BaseWindow w) => windows.Add(w);
 
         private void UpdateSystem()
         {
@@ -82,22 +105,37 @@ namespace filesys
 
             if (click)
             {
-                // CONFIRMATION POWER
                 if (confirmPower)
                 {
-                    if (mx > 40 && mx < 120 && my > menuY + 220 && my < menuY + 250)
-                    {
-                        if (confirmShutdown) Sys.Power.Shutdown();
-                        else Sys.Power.Reboot();
-                    }
-                    if (mx > 140 && mx < 220 && my > menuY + 220 && my < menuY + 250)
-                        confirmPower = false;
+                    int screenWidth = (int)canvas.Mode.Columns;
+                    int screenHeighte = (int)canvas.Mode.Rows;
 
-                    Thread.Sleep(200);
+                    int boxX = (screenWidth / 2) - (ConfirmWidth / 2);
+                    int boxY = (screenHeighte / 2) - (ConfirmHeight / 2);
+
+                    // ✅ BOUTON YES
+                    if (mx >= boxX + 20 && mx <= boxX + 90 &&
+                        my >= boxY + 45 && my <= boxY + 65)
+                    {
+                        if (confirmShutdown)
+                            Sys.Power.Shutdown();
+                        else
+                            Sys.Power.Reboot();
+
+                        Thread.Sleep(200);
+                    }
+
+                    // ✅ BOUTON NO
+                    if (mx >= boxX + 130 && mx <= boxX + 200 &&
+                        my >= boxY + 45 && my <= boxY + 65)
+                    {
+                        confirmPower = false;
+                        Thread.Sleep(200);
+                    }
+
                     return;
                 }
 
-                // MENU START
                 if (menuOpen && mx <= menuWidth && my >= menuY && my <= taskbarY)
                 {
                     if (my > menuY + 20 && my < menuY + 80)
@@ -106,6 +144,8 @@ namespace filesys
                         AddWindow(new FileExplorerWindow(150, 150));
                     else if (my > menuY + 140 && my < menuY + 200)
                         AddWindow(new TaskManager(150, 150));
+                    else if (my > menuY + 200 && my < menuY + 250)
+                        darkTheme = !darkTheme;
                     else if (my > taskbarY - 40)
                     {
                         confirmPower = true;
@@ -131,6 +171,23 @@ namespace filesys
             }
         }
 
+        private void ToggleWindow(BaseWindow w)
+        {
+            w.IsMinimized = !w.IsMinimized;
+        }
+        public void AddWindow(BaseWindow w) => windows.Add(w);
+        // 🌫️ BACKGROUND BLUR
+        private void DrawBackgroundBlur()
+        {
+            int w = (int)canvas.Mode.Columns;
+            int h = (int)canvas.Mode.Rows;
+
+            canvas.DrawFilledRectangle(
+                new Pen(Color.FromArgb(120, 0, 0, 0)),
+                0, 0, w, h
+            );
+        }
+
         private void DrawStartMenu()
         {
             int mx = (int)MouseManager.X;
@@ -140,46 +197,71 @@ namespace filesys
             int taskbarY = screenHeight - 30;
             int menuY = taskbarY - menuHeight;
 
-            canvas.DrawFilledRectangle(new Pen(Color.FromArgb(220, 220, 220)), 0, menuY, menuWidth, menuHeight);
+            Color bg = darkTheme ? Color.FromArgb(40, 40, 40) : Color.FromArgb(230, 230, 230);
+            Color text = darkTheme ? Color.White : Color.Black;
+            Color hover = darkTheme ? Color.FromArgb(70, 70, 70) : Color.LightBlue;
+
+            canvas.DrawFilledRectangle(new Pen(bg), 0, menuY, menuWidth, menuHeight);
             canvas.DrawRectangle(new Pen(Color.Black), 0, menuY, menuWidth, menuHeight);
 
-            DrawMenuItem(10, menuY + 25, "Console", DrawConsoleIcon, mx, my);
-            DrawMenuItem(10, menuY + 85, "Files", DrawFilesIcon, mx, my);
-            DrawMenuItem(10, menuY + 145, "Tasks", DrawTasksIcon, mx, my);
+            DrawMenuItem(10, menuY + 25, "Console", DrawConsoleIcon, text, hover, mx, my);
+            DrawMenuItem(10, menuY + 85, "Files", DrawFilesIcon, text, hover, mx, my);
+            DrawMenuItem(10, menuY + 145, "Tasks", DrawTasksIcon, text, hover, mx, my);
+            DrawMenuItem(10, menuY + 205, "Theme", DrawThemeIcon, text, hover, mx, my);
 
-            // Boutons power
             int btnW = menuWidth / 2;
             canvas.DrawFilledRectangle(new Pen(Color.DarkRed), 0, taskbarY - 40, btnW, 40);
             canvas.DrawFilledRectangle(new Pen(Color.DarkOrange), btnW, taskbarY - 40, btnW, 40);
 
             canvas.DrawString("Shutdown", PCScreenFont.Default, new Pen(Color.White), 10, taskbarY - 25);
             canvas.DrawString("Restart", PCScreenFont.Default, new Pen(Color.White), btnW + 15, taskbarY - 25);
-
-            if (confirmPower)
-                DrawConfirmBox(menuY);
         }
 
+        // 🔵 COMBOX BLEUE SEMI-TRANSPARENTE
         private void DrawConfirmBox(int menuY)
         {
-            canvas.DrawFilledRectangle(new Pen(Color.Black), 20, menuY + 200, 220, 80);
-            canvas.DrawString("Are you sure ?", PCScreenFont.Default, new Pen(Color.White), 40, menuY + 210);
+            int screenWidth = (int)canvas.Mode.Columns;
+            int screenHeight = (int)canvas.Mode.Rows;
 
-            canvas.DrawFilledRectangle(new Pen(Color.Green), 40, menuY + 230, 80, 20);
-            canvas.DrawFilledRectangle(new Pen(Color.Red), 140, menuY + 230, 80, 20);
+            // ✅ CENTRAGE PARFAIT ÉCRAN
+            int x = (screenWidth / 2) - (ConfirmWidth / 2);
+            int y = (screenHeight / 2) - (ConfirmHeight / 2);
 
-            canvas.DrawString("Yes", PCScreenFont.Default, new Pen(Color.White), 65, menuY + 233);
-            canvas.DrawString("No", PCScreenFont.Default, new Pen(Color.White), 170, menuY + 233);
+            canvas.DrawFilledRectangle(
+                new Pen(Color.FromArgb(200, 40, 80, 160)), // bleu semi-transparent
+                x, y, ConfirmWidth, ConfirmHeight
+            );
+
+            canvas.DrawRectangle(new Pen(Color.White), x, y, ConfirmWidth, ConfirmHeight);
+
+            canvas.DrawString(
+                confirmShutdown ? "Shutdown ?" : "Restart ?",
+                PCScreenFont.Default,
+                new Pen(Color.White),
+                x + 55, y + 10
+            );
+
+            canvas.DrawFilledRectangle(new Pen(Color.Green), x + 20, y + 45, 70, 20);
+            canvas.DrawString("Yes", PCScreenFont.Default, new Pen(Color.White), x + 40, y + 48);
+
+            canvas.DrawFilledRectangle(new Pen(Color.Red), x + 130, y + 45, 70, 20);
+            canvas.DrawString("No", PCScreenFont.Default, new Pen(Color.White), x + 155, y + 48);
         }
 
-        private void DrawMenuItem(int x, int y, string text, Action<int, int> icon, int mx, int my)
+        private void DrawMenuItem(
+            int x, int y,
+            string text,
+            Action<int, int> icon,
+            Color textColor,
+            Color hoverColor,
+            int mx, int my)
         {
-            bool hover = mx >= x && mx <= x + 180 && my >= y && my <= y + 40;
-
+            bool hover = mx >= 0 && mx <= menuWidth && my >= y && my <= y + 45;
             if (hover)
-                canvas.DrawFilledRectangle(new Pen(Color.LightBlue), 0, y - 5, menuWidth, 45);
+                canvas.DrawFilledRectangle(new Pen(hoverColor), 0, y - 5, menuWidth, 45);
 
             icon(x, y);
-            canvas.DrawString(text, PCScreenFont.Default, new Pen(Color.Black), 60, y + 10);
+            canvas.DrawString(text, PCScreenFont.Default, new Pen(textColor), 60, y + 10);
         }
 
         private void DrawTaskbar()
@@ -188,12 +270,71 @@ namespace filesys
             int screenHeight = (int)canvas.Mode.Rows;
             int taskbarY = screenHeight - 30;
 
-            canvas.DrawFilledRectangle(new Pen(Color.FromArgb(30, 30, 30)), 0, taskbarY, screenWidth, 30);
+            Color bg = darkTheme ? Color.FromArgb(30, 30, 30) : Color.FromArgb(20, 20, 20);
+            Color txt = darkTheme ? Color.White : Color.Black;
+
+            canvas.DrawFilledRectangle(new Pen(bg), 0, taskbarY, screenWidth, 30);
+
+            // START BUTTON
             canvas.DrawFilledRectangle(new Pen(Color.White), 5, taskbarY + 5, 40, 20);
-            canvas.DrawString("OS", PCScreenFont.Default, new Pen(Color.Black), 15, taskbarY + 8);
+            canvas.DrawString("OS", PCScreenFont.Default, new Pen(txt), 15, taskbarY + 8);
+
+            // 🪟 WINDOWS (MINIMIZED + NORMAL)
+            int x = 60;
+
+            for (int i = 0; i < windows.Count; i++)
+            {
+                var w = windows[i];
+                if (w.IsClosed) continue;
+
+                int width = 120;
+
+                bool hover =
+                    MouseManager.X >= x &&
+                    MouseManager.X <= x + width &&
+                    MouseManager.Y >= taskbarY &&
+                    MouseManager.Y <= taskbarY + 30;
+
+                Color btnColor;
+
+                if (w.IsMinimized)
+                    btnColor = Color.FromArgb(70, 120, 200); // bleu (minimized)
+                else
+                    btnColor = Color.FromArgb(140, 140, 140);
+
+                if (hover)
+                    btnColor = Color.FromArgb(200, 200, 200);
+
+                canvas.DrawFilledRectangle(new Pen(btnColor), x, taskbarY + 5, width, 20);
+
+                canvas.DrawString(
+                    w.Title,
+                    PCScreenFont.Default,
+                    new Pen(Color.White),
+                    x + 5,
+                    taskbarY + 8
+                );
+
+                // 🧠 CLICK RESTORE / MINIMIZE
+                if (hover && MouseManager.MouseState == MouseState.Left)
+                {
+                    w.IsMinimized = !w.IsMinimized;
+
+                    // si on restaure → remettre au-dessus
+                    if (!w.IsMinimized)
+                    {
+                        windows.Remove(w);
+                        windows.Add(w);
+                    }
+
+                    Thread.Sleep(150);
+                }
+
+                x += width + 5;
+            }
         }
 
-        // 🎨 ICÔNES COULEUR
+        // 🎨 ICONS inchangés
         private void DrawConsoleIcon(int x, int y)
         {
             canvas.DrawFilledRectangle(new Pen(Color.Black), x, y, 40, 25);
@@ -211,6 +352,12 @@ namespace filesys
             canvas.DrawFilledRectangle(new Pen(Color.SteelBlue), x, y, 40, 25);
             canvas.DrawLine(new Pen(Color.White), x + 5, y + 8, x + 35, y + 8);
             canvas.DrawLine(new Pen(Color.White), x + 5, y + 15, x + 25, y + 15);
+        }
+
+        private void DrawThemeIcon(int x, int y)
+        {
+            canvas.DrawFilledRectangle(new Pen(darkTheme ? Color.Black : Color.White), x + 5, y + 5, 15, 15);
+            canvas.DrawFilledRectangle(new Pen(darkTheme ? Color.White : Color.Black), x + 20, y + 5, 15, 15);
         }
     }
 }
