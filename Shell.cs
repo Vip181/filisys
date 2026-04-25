@@ -1,4 +1,5 @@
-﻿using System;
+﻿using filesys.GUI;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -29,11 +30,11 @@ namespace filesys
                         if (int.TryParse(args[1], out newWidth) && int.TryParse(args[2], out newHeight))
                         {
                             // 1️⃣ Mettre à jour l'écran
-                            ScreenManager.Init(newWidth, newHeight);
+                          
 
                             // 2️⃣ Mettre à jour le canvas utilisé par le Kernel
                             // Attention : canvas est une variable globale dans Kernel
-                           
+                            
 
                             // 3️⃣ Sauvegarde dans le fichier
                            

@@ -1,40 +1,24 @@
 ﻿using Cosmos.System.Graphics;
-using System.Collections.Generic;
 
 namespace filesys.GUI
 {
     public class WindowManager
     {
-        private List<BaseWindow> windows = new List<BaseWindow>();
-
-        public void Add(BaseWindow window)
-        {
-            windows.Add(window);
-        }
-
-        public void Update()
-        {
-            foreach (var w in windows.ToArray())
-            {
-                filesys.System.SafeExecutor.Execute(() =>
-                {
-                    w.Update();
-                });
-
-                if (w.IsClosed)
-                    windows.Remove(w);
-            }
-        }
-
+        // On n'utilise plus de liste privée ici, on utilise Kernel.Instance.windows
         public void Draw(Canvas canvas)
         {
-            foreach (var w in windows)
+            // On dessine chaque fenêtre de la liste globale
+            foreach (var w in Kernel.Instance.windows)
             {
-                filesys.System.SafeExecutor.Execute(() =>
-                {
-                    w.Draw(canvas);
-                });
+                // OPTIMISATION MÉMOIRE/CPU : 
+                // Si réduit, on ne déclenche même pas le code de dessin
+                if (w.IsMinimized || w.IsClosed) continue;
+
+                w.Draw(canvas);
             }
         }
+
+        // Note: La méthode Add n'est plus nécessaire ici si tu utilises Kernel.Instance.AddWindow
+        public void Add(BaseWindow window) => Kernel.Instance.AddWindow(window);
     }
 }

@@ -6,7 +6,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Net;
-
+using Cosmos.System.FileSystem.VFS;//
 namespace filesys.GUI
 {
     public class WindowsConsole : BaseWindow
@@ -76,6 +76,53 @@ namespace filesys.GUI
                     buffer.WriteLine($"RAM Total: {Cosmos.Core.CPU.GetAmountOfRAM()} MB");
                     buffer.WriteLine($"Allocations Process: {memManager.GetAllocationCount()}");
                 }
+                // Commande pour créer un fichier vide : touch [nom]
+                else if (parts[0] == "touch" && parts.Length == 2)
+                {
+                    string filename = parts[1];
+                    string path = @"0:\" + filename;
+
+                    try
+                    {
+                        if (!File.Exists(path))
+                        {
+                            File.Create(path).Close(); // .Close() est crucial pour libérer le fichier immédiatement
+                            buffer.WriteLine($"Fichier '{filename}' cree.");
+                        }
+                        else
+                        {
+                            buffer.WriteLine("Erreur : Le fichier existe deja.");
+                        }
+                    }
+                    catch (Exception ex) { ShowError("FS Error: " + ex.Message); }
+                }
+
+                // Commande pour écrire/créer : edit [nom] [texte...]
+                else if (parts[0] == "edit" && parts.Length >= 2)
+                {
+                    string filename = parts[1];
+                    string path = @"0:\" + filename;
+
+                    // On récupère tout le texte après le nom du fichier
+                    // Exemple : edit monfichier.txt Bonjour tout le monde
+                    // content sera "Bonjour tout le monde"
+                    string content = "";
+                    if (parts.Length > 2)
+                    {
+                        content = cmd.Substring(cmd.IndexOf(parts[2]));
+                    }
+
+                    try
+                    {
+                        // Sécurité : On écrit le texte (écrase si existe, crée sinon)
+                        File.WriteAllText(path, content);
+                        buffer.WriteLine($"Fichier '{filename}' enregistre.");
+
+                        // On ouvre la fenêtre de lecture pour vérifier le résultat
+                        Kernel.Instance.AddWindow(new FileViewer(filename, 250, 250));
+                    }
+                    catch (Exception ex) { ShowError("FS Error: " + ex.Message); }
+                }
                 else if (cmd == "ramfix")
                 {
                     // On nettoie la mémoire globale
@@ -132,7 +179,7 @@ namespace filesys.GUI
                 }
                 else if (cmd == "help")
                 {
-                    buffer.WriteLine("Cmds: mem, ramfix, clear, res, reboot, shutdown,tasks");
+                    buffer.WriteLine("Cmds: mem, ramfix, clear, res, reboot, shutdown,tasks, Commande pour écrire/créer : edit [nom] [texte...], Commande pour créer un fichier vide : touch [nom] ");
                 }
                 else if (parts[0] == "res" && parts.Length == 3)
                 {

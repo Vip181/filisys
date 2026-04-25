@@ -52,7 +52,7 @@ namespace filesys
                 // ignore les erreurs
             }
 
-            return (1024, 768); // valeur par défaut
+            return (1920, 1080); // valeur par défaut
         }
     }
 }
