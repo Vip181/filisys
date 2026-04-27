@@ -1,12 +1,12 @@
 ﻿using Cosmos.System;
 using Cosmos.System.Graphics;
 using Cosmos.System.Graphics.Fonts;
-using filesys.System; // Pour accéder à ProcessMemoryManager
+using filesys.System;
 using System;
 using System.Drawing;
 using System.IO;
-using System.Net;
-using Cosmos.System.FileSystem.VFS;//
+using System.Collections.Generic;
+
 namespace filesys.GUI
 {
     public class WindowsConsole : BaseWindow
@@ -15,212 +15,397 @@ namespace filesys.GUI
         private string input = "";
         private int lineHeight = 16;
 
-        // Notre gestionnaire de mémoire dédié à cette instance de console
+        // ===== CURSEUR =====
+        private int cursorIndex = 0;
+
+        // ===== CLIPBOARD =====
+        private string clipboard = "";
+
+        // ===== SELECTION =====
+        private int selectionStart = -1;
+        private int selectionEnd = -1;
+
+        // ===== SCROLL =====
+        private int scrollOffset = 0;
+        private bool draggingScroll = false;
+
         private ProcessMemoryManager memManager;
+
+        // FILESYSTEM
+        private string currentDirectory = @"0:\";
+
+        // HISTORY
+        private List<string> commandHistory = new List<string>();
+        private int historyIndex = -1;
+
+        // AUTOCOMPLETE
+      
+
+        private List<string> autoMatches = new List<string>();
+        private int autoIndex = 0;
+
+        private string helpFile = @"0:\help.txt";
 
         public WindowsConsole(int x, int y) : base("Console", x, y, 520, 420)
         {
-            // Initialisation du gestionnaire de mémoire
             memManager = new ProcessMemoryManager("Console_System");
-
-            // On alloue le buffer de la console via le manager
-            // On considère que le ConsoleBuffer est un objet "suivi"
-            buffer = new ConsoleBuffer(100);
+            buffer = new ConsoleBuffer(500);
 
             buffer.WriteLine("Console Ready.");
-            buffer.WriteLine("Memory Manager: ACTIVE");
+            buffer.WriteLine("Type 'help' for commands.");
         }
 
-        public void ShowError(string message)
-        {
-            buffer.WriteLine("Error: " + message);
-        }
-
+        // =========================
+        // UPDATE
+        // =========================
         public override void Update()
         {
             base.Update();
             if (IsMinimized) return;
 
-            // SI LA CONSOLE EST FERMÉE (clic sur le X)
-            if (this.IsClosed)
+            if (IsClosed)
             {
-                // RESET TOTAL : On libère tous les pointeurs alloués par cette console
                 memManager.ReleaseAll();
                 return;
             }
 
-            if (KeyboardManager.TryReadKey(out var key))
+            HandleMouse();
+            HandleKeyboard();
+        }
+
+        // =========================
+        // MOUSE (scroll + selection)
+        // =========================
+        private void HandleMouse()
+        {
+            int mx = (int)MouseManager.X;
+            int my = (int)MouseManager.Y;
+
+            var state = MouseManager.MouseState;
+
+            if (state == MouseState.Left)
             {
-                if (key.Key == ConsoleKeyEx.Enter)
+                // scroll drag
+                if (IsInsideScrollBar(mx, my))
                 {
-                    ExecuteCommand(input.ToLower().Trim());
-                    input = "";
+                    draggingScroll = true;
                 }
-                else if (key.Key == ConsoleKeyEx.Backspace && input.Length > 0)
-                    input = input.Remove(input.Length - 1);
-                else if (key.KeyChar != '\0' && input.Length < 60)
-                    input += key.KeyChar;
+
+                // selection
+                int line = GetLineFromMouse(my);
+
+                if (selectionStart == -1)
+                    selectionStart = line;
+
+                selectionEnd = line;
+            }
+            else
+            {
+                draggingScroll = false;
+            }
+
+            if (draggingScroll)
+            {
+                int visible = (Height - 70) / lineHeight;
+                var lines = buffer.GetLines();
+
+                int total = lines.Length;
+                int barHeight = Height - 80;
+
+                int rel = my - (Y + 40);
+
+                scrollOffset = (rel * total / Math.Max(1, barHeight)) - visible / 2;
+                scrollOffset = Math.Max(0, Math.Min(scrollOffset, Math.Max(0, total - visible)));
             }
         }
 
+        private bool IsInsideScrollBar(int mx, int my)
+        {
+            return mx >= X + Width - 12 &&
+                   mx <= X + Width - 4 &&
+                   my >= Y + 40 &&
+                   my <= Y + Height - 40;
+        }
+
+        private int GetLineFromMouse(int my)
+        {
+            int start = Math.Max(0, scrollOffset);
+            int index = (my - (Y + 40)) / lineHeight;
+            return start + index;
+        }
+
+        // =========================
+        // KEYBOARD
+        // =========================
+        private void HandleKeyboard()
+        {
+            if (!KeyboardManager.TryReadKey(out var key)) return;
+
+            // COPY
+            if (key.Key == ConsoleKeyEx.C && key.Modifiers == ConsoleModifiers.Control)
+            {
+                CopySelection();
+                return;
+            }
+
+            // PASTE
+            if (key.Key == ConsoleKeyEx.V && key.Modifiers == ConsoleModifiers.Control)
+            {
+                input = input.Insert(cursorIndex, clipboard);
+                cursorIndex += clipboard.Length;
+                return;
+            }
+
+            // SELECT ALL
+            if (key.Key == ConsoleKeyEx.A && key.Modifiers == ConsoleModifiers.Control)
+            {
+                selectionStart = 0;
+                selectionEnd = buffer.GetLines().Length;
+                return;
+            }
+
+            // ENTER
+            if (key.Key == ConsoleKeyEx.Enter)
+            {
+                if (!string.IsNullOrWhiteSpace(input))
+                {
+                    commandHistory.Add(input);
+                    historyIndex = commandHistory.Count;
+                }
+
+                ExecuteCommand(input.Trim());
+
+                input = "";
+                cursorIndex = 0;
+                ResetAutocomplete();
+                return;
+            }
+
+            // BACKSPACE
+            if (key.Key == ConsoleKeyEx.Backspace)
+            {
+                if (cursorIndex > 0)
+                {
+                    input = input.Remove(cursorIndex - 1, 1);
+                    cursorIndex--;
+                }
+                return;
+            }
+
+            // LEFT
+            if (key.Key == ConsoleKeyEx.LeftArrow)
+            {
+                if (cursorIndex > 0) cursorIndex--;
+                return;
+            }
+
+            // RIGHT
+            if (key.Key == ConsoleKeyEx.RightArrow)
+            {
+                if (cursorIndex < input.Length) cursorIndex++;
+                return;
+            }
+
+            // CHAR INPUT
+            if (key.KeyChar != '\0')
+            {
+                input = input.Insert(cursorIndex, key.KeyChar.ToString());
+                cursorIndex++;
+                ResetAutocomplete();
+            }
+        }
+
+        // =========================
+        // COPY
+        // =========================
+        private void CopySelection()
+        {
+            if (selectionStart == -1 || selectionEnd == -1) return;
+
+            var lines = buffer.GetLines();
+
+            int s = Math.Min(selectionStart, selectionEnd);
+            int e = Math.Max(selectionStart, selectionEnd);
+
+            clipboard = "";
+
+            for (int i = s; i <= e && i < lines.Length; i++)
+                clipboard += lines[i] + "\n";
+        }
+
+        // =========================
+        // COMMANDS
+        // =========================
         private void ExecuteCommand(string cmd)
         {
-            buffer.WriteLine("> " + cmd);
+            buffer.WriteLine(currentDirectory + "> " + cmd);
             var parts = cmd.Split(' ');
 
             try
             {
-                if (cmd == "mem")
+                switch (parts[0])
                 {
-                    uint usedRam = (uint)Cosmos.Core.GCImplementation.GetUsedRAM() / 1024 / 1024;
-                    buffer.WriteLine($"RAM Total: {Cosmos.Core.CPU.GetAmountOfRAM()} MB");
-                    buffer.WriteLine($"Allocations Process: {memManager.GetAllocationCount()}");
-                }
-                // Commande pour créer un fichier vide : touch [nom]
-                else if (parts[0] == "touch" && parts.Length == 2)
-                {
-                    string filename = parts[1];
-                    string path = @"0:\" + filename;
-
-                    try
-                    {
-                        if (!File.Exists(path))
+                    case "help":
+                        if (File.Exists(helpFile))
                         {
-                            File.Create(path).Close(); // .Close() est crucial pour libérer le fichier immédiatement
-                            buffer.WriteLine($"Fichier '{filename}' cree.");
+                            foreach (var l in File.ReadAllLines(helpFile))
+                                buffer.WriteLine(l);
                         }
                         else
                         {
-                            buffer.WriteLine("Erreur : Le fichier existe deja.");
+                            buffer.WriteLine("help.txt missing");
                         }
-                    }
-                    catch (Exception ex) { ShowError("FS Error: " + ex.Message); }
-                }
+                        break;
 
-                // Commande pour écrire/créer : edit [nom] [texte...]
-                else if (parts[0] == "edit" && parts.Length >= 2)
-                {
-                    string filename = parts[1];
-                    string path = @"0:\" + filename;
+                    case "mem":
+                        buffer.WriteLine("RAM: " +
+                            (Cosmos.Core.GCImplementation.GetUsedRAM() / 1024 / 1024) + " MB");
+                        break;
 
-                    // On récupère tout le texte après le nom du fichier
-                    // Exemple : edit monfichier.txt Bonjour tout le monde
-                    // content sera "Bonjour tout le monde"
-                    string content = "";
-                    if (parts.Length > 2)
-                    {
-                        content = cmd.Substring(cmd.IndexOf(parts[2]));
-                    }
+                    case "clear":
+                        buffer.Clear();
+                        break;
 
-                    try
-                    {
-                        // Sécurité : On écrit le texte (écrase si existe, crée sinon)
+                    case "ls":
+                        foreach (var d in Directory.GetDirectories(currentDirectory))
+                            buffer.WriteLine("[DIR] " + Path.GetFileName(d));
+
+                        foreach (var f in Directory.GetFiles(currentDirectory))
+                            buffer.WriteLine("      " + Path.GetFileName(f));
+                        break;
+
+                    case "cat":
+                        if (parts.Length < 2) break;
+
+                        string file = Path.Combine(currentDirectory, parts[1]);
+
+                        if (File.Exists(file))
+                            foreach (var l in File.ReadAllLines(file))
+                                buffer.WriteLine(l);
+                        break;
+
+                    case "cd":
+                        if (parts.Length < 2) break;
+
+                        string target = parts[1] == ".."
+                            ? Path.GetDirectoryName(currentDirectory.TrimEnd('\\')) + "\\"
+                            : Path.Combine(currentDirectory, parts[1]) + "\\";
+
+                        if (Directory.Exists(target))
+                            currentDirectory = target;
+                        break;
+
+                    case "touch":
+                        File.Create(Path.Combine(currentDirectory, parts[1])).Close();
+                        break;
+
+                    case "edit":
+                        string path = Path.Combine(currentDirectory, parts[1]);
+                        string content = cmd.Substring(cmd.IndexOf(parts[1]) + parts[1].Length).Trim();
                         File.WriteAllText(path, content);
-                        buffer.WriteLine($"Fichier '{filename}' enregistre.");
+                        break;
 
-                        // On ouvre la fenêtre de lecture pour vérifier le résultat
-                        Kernel.Instance.AddWindow(new FileViewer(filename, 250, 250));
-                    }
-                    catch (Exception ex) { ShowError("FS Error: " + ex.Message); }
-                }
-                else if (cmd == "ramfix")
-                {
-                    // On nettoie la mémoire globale
-                    Cosmos.Core.Memory.Heap.Collect();
-                    buffer.WriteLine("System Memory Reset.");
-                }
-                else if (cmd == "reboot")
-                {
-                    buffer.WriteLine("Rebooting...");
-                    Cosmos.System.Power.Reboot();
-                }
-                else if (cmd == "shutdown")
-                {
-                    buffer.WriteLine("Shutting down...");
-                    Cosmos.System.Power.Shutdown();
-                }
-             
+                    case "reboot":
+                        Cosmos.System.Power.Reboot();
+                        break;
 
-                    else if (parts[0] == "kill" && parts.Length == 2)
-                {
-                    string target = parts[1].ToLower();
-                    bool found = false;
+                    case "shutdown":
+                        Cosmos.System.Power.Shutdown();
+                        break;
 
-                    // On récupère la liste des fenêtres depuis le Kernel
-                    // Note: Utilise 'Kernel.Instance.windows' si tu l'as mis en public, 
-                    // sinon crée une méthode 'GetWindows()' dans ton Kernel.
-                    var allWindows = Kernel.Instance.GetWindows();
-
-                    for (int i = 0; i < allWindows.Count; i++)
-                    {
-                        // On compare le titre de la fenêtre (en minuscule) avec l'argument
-                        if (allWindows[i].Title.ToLower().Contains(target))
-                        {
-                            // On marque la fenêtre comme fermée
-                            // Le Kernel la supprimera automatiquement au prochain Update()
-                            allWindows[i].IsClosed = true;
-                            buffer.WriteLine("Processus '" + allWindows[i].Title + "' arrete.");
-                            found = true;
-                        }
-                    }
-
-                    if (!found) buffer.WriteLine("Aucune fenetre trouvee pour : " + target);
-                }
-                else if (cmd == "clear")
-                {
-                    buffer.Clear();
-                }
-                else if (cmd == "tasks")
-                {
-                    // On demande au Kernel d'ajouter une nouvelle fenêtre de TaskManager
-                    // Note: Il faut que ta liste 'windows' dans Kernel soit accessible ou via une méthode statique
-                    Kernel.Instance.AddWindow(new TaskManager(200, 200));
-                    buffer.WriteLine("Lancement du Gestionnaire de taches...");
-                }
-                else if (cmd == "help")
-                {
-                    buffer.WriteLine("Cmds: mem, ramfix, clear, res, reboot, shutdown,tasks, Commande pour écrire/créer : edit [nom] [texte...], Commande pour créer un fichier vide : touch [nom] ");
-                }
-                else if (parts[0] == "res" && parts.Length == 3)
-                {
-                    if (int.TryParse(parts[1], out int w) && int.TryParse(parts[2], out int h))
-                    {
-                        buffer.WriteLine($"Switching to {w}x{h}...");
-                        Config.SaveResolution(w, h);
-                        // Le Kernel s'occupera du changement au reboot
-                    }
-                }
-                else
-                {
-                    buffer.WriteLine("Unknown command");
+                    default:
+                        buffer.WriteLine("Unknown command");
+                        break;
                 }
             }
-            catch (Exception ex) { ShowError(ex.Message); }
+            catch (Exception ex)
+            {
+                buffer.WriteLine("Error: " + ex.Message);
+            }
         }
 
+        // =========================
+        // DRAW
+        // =========================
         public override void Draw(Canvas canvas)
         {
             if (IsMinimized) return;
+
             base.Draw(canvas);
 
-            // Rendu adaptatif du texte
-            int availableHeight = Height - 70;
-            int maxLines = availableHeight / lineHeight;
+            int y = Y + 40;
+            int visible = (Height - 70) / lineHeight;
+
             var lines = buffer.GetLines();
-            int yOffset = Y + 40;
 
-            int start = Math.Max(0, lines.Length - maxLines);
+            int start = Math.Max(0, scrollOffset);
+            int end = Math.Min(lines.Length, start + visible);
 
-            for (int i = start; i < lines.Length; i++)
+            for (int i = start; i < end; i++)
             {
-                if (yOffset + lineHeight < Y + Height - 25)
-                {
-                    canvas.DrawString(lines[i], PCScreenFont.Default, StyleManager.TextLime, X + 10, yOffset);
-                    yOffset += lineHeight;
-                }
+                canvas.DrawString(lines[i],
+                    PCScreenFont.Default,
+                    StyleManager.TextLime,
+                    X + 10,
+                    y);
+
+                y += lineHeight;
             }
 
-            canvas.DrawString("> " + input + "_", PCScreenFont.Default, StyleManager.TextWhite, X + 10, Y + Height - 25);
+            DrawScrollBar(canvas);
+
+            DrawInput(canvas);
+        }
+
+        private void DrawInput(Canvas canvas)
+        {
+            string prompt = currentDirectory + "> ";
+
+            int baseX = X + 10;
+            int baseY = Y + Height - 25;
+
+            canvas.DrawString(prompt, PCScreenFont.Default, StyleManager.TextWhite, baseX, baseY);
+
+            int x = baseX + Measure(prompt);
+
+            string before = input.Substring(0, cursorIndex);
+            string after = input.Substring(cursorIndex);
+
+            canvas.DrawString(before, PCScreenFont.Default, StyleManager.TextWhite, x, baseY);
+
+            int cx = x + Measure(before);
+
+            canvas.DrawFilledRectangle(StyleManager.TextWhite, cx, baseY, 2, lineHeight);
+
+            canvas.DrawString(after, PCScreenFont.Default, StyleManager.TextWhite, cx + 2, baseY);
+        }
+
+        private void DrawScrollBar(Canvas canvas)
+        {
+            int barX = X + Width - 10;
+            int barY = Y + 40;
+            int barH = Height - 80;
+
+            canvas.DrawFilledRectangle(StyleManager.DarkGray, barX, barY, 6, barH);
+
+            int thumbH = 30;
+            int thumbY = barY + scrollOffset;
+
+            canvas.DrawFilledRectangle(StyleManager.LightGray, barX, thumbY, 6, thumbH);
+        }
+
+        // =========================
+        // UTIL
+        // =========================
+        private int Measure(string text)
+        {
+            return text.Length * 8;
+        }
+
+        private void ResetAutocomplete()
+        {
+            autoMatches.Clear();
+            autoIndex = 0;
         }
     }
 }

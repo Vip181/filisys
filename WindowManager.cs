@@ -1,4 +1,5 @@
 ﻿using Cosmos.System.Graphics;
+using System.Collections.Generic;
 
 namespace filesys.GUI
 {
@@ -22,3 +23,4 @@ namespace filesys.GUI
         public void Add(BaseWindow window) => Kernel.Instance.AddWindow(window);
     }
 }
+

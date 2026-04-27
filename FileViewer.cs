@@ -19,9 +19,10 @@ namespace filesys.GUI
         private bool confirmDelete = false;
 
         public FileViewer(string filename, int x, int y)
-            : base("Editor: " + filename, x, y, 400, 350)
+            : base("Editor: " + Path.GetFileName(filename), x, y, 400, 350)
         {
-            filePath = @"0:\" + filename;
+            // Utiliser le chemin fourni
+            filePath = filename;
 
             saveButton = new Button(
                 X + Width - 80,
@@ -48,10 +49,60 @@ namespace filesys.GUI
         {
             try
             {
+                // Tentative 1 : chemin tel quel
                 if (File.Exists(filePath))
+                {
                     fileContent = File.ReadAllText(filePath);
+                    if (string.IsNullOrEmpty(fileContent))
+                        fileContent = "[Fichier vide]";
+                    return;
+                }
+
+                // Tentative 2 : supprimer doublons "0:\0:\"
+                var alt = filePath;
+                while (alt.StartsWith(@"0:\0:\"))
+                    alt = alt.Substring(3);
+                if (alt != filePath && File.Exists(alt))
+                {
+                    fileContent = File.ReadAllText(alt);
+                    if (string.IsNullOrEmpty(fileContent))
+                        fileContent = "[Fichier vide]";
+                    filePath = alt; // mettre à jour pour affichage
+                    return;
+                }
+
+                // Tentative 3 : remplacer slash avant/backslash
+                var alt2 = filePath.Replace('\\', '/');
+                if (File.Exists(alt2))
+                {
+                    fileContent = File.ReadAllText(alt2);
+                    if (string.IsNullOrEmpty(fileContent))
+                        fileContent = "[Fichier vide]";
+                    filePath = alt2;
+                    return;
+                }
+
+                // Tentative 4 : essayer avec un préfixe "0:\" si absent
+                if (!filePath.StartsWith(@"0:\"))
+                {
+                    var pref = @"0:\" + filePath.TrimStart('\\', '/');
+                    if (File.Exists(pref))
+                    {
+                        fileContent = File.ReadAllText(pref);
+                        if (string.IsNullOrEmpty(fileContent))
+                            fileContent = "[Fichier vide]";
+                        filePath = pref;
+                        return;
+                    }
+                }
+
+                // Aucun succès → message explicite
+                fileContent = "[File not found] " + filePath;
             }
-            catch { fileContent = ""; }
+            catch (Exception ex)
+            {
+                fileContent = "[Error reading file] " + ex.Message;
+            }
         }
 
         private void SaveFile()
@@ -133,6 +184,15 @@ namespace filesys.GUI
         {
             if (IsMinimized || IsClosed) return;
             base.Draw(canvas);
+
+            // Afficher le chemin du fichier en haut pour debug
+            canvas.DrawString(
+                filePath,
+                PCScreenFont.Default,
+                new Pen(Color.LightGray),
+                X + 10,
+                Y + 18
+            );
 
             canvas.DrawFilledRectangle(
                 new Pen(Color.White),

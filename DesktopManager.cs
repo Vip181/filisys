@@ -15,39 +15,34 @@ namespace filesys.GUI
         {
             Icons.Clear();
 
-            int x = 100;
-            int y = 100;
-
             // 📁 dossiers
             foreach (var dir in FileSystemHelper.GetDirectories(currentPath))
             {
-                string name = Path.GetFileName(dir);
+                var d = dir; // capturer la valeur locale pour la lambda
+                string name = Path.GetFileName(d);
 
                 Icons.Add(new DesktopIcon(
                     name,
-                    dir,
+                    d,
                     IconType.Folder,
-                    x, y,
-                    () => ChangeDirectory(dir)
+                    0, 0,
+                    () => ChangeDirectory(d)
                 ));
-
-                x += 70;
             }
 
             // 📄 fichiers
             foreach (var file in FileSystemHelper.GetFiles(currentPath))
             {
-                string name = Path.GetFileName(file);
+                var f = file; // capturer la valeur locale pour la lambda
+                string name = Path.GetFileName(f);
 
                 Icons.Add(new DesktopIcon(
                     name,
-                    file,
+                    f,
                     IconType.File,
-                    x, y,
-                    () => OpenFile(file)
+                    0, 0,
+                    () => OpenFile(f)
                 ));
-
-                x += 70;
             }
         }
 
@@ -57,40 +52,53 @@ namespace filesys.GUI
             Refresh();
         }
 
+        public static WindowManager WindowMgr;
+
         public void OpenFile(string file)
         {
-            // 🔥 simple test
-            Kernel.Instance.AddWindow(new WindowsConsole(200, 200));
+            // normaliser le chemin pour éviter doublons tels que "0:\0:\..."
+            var filePath = file;
+            while (filePath.StartsWith(@"0:\0:\"))
+                filePath = filePath.Substring(3); // supprime le premier "0:\")
+
+            // trace pour debug : écrire le chemin ouvert (si possible)
+            try
+            {
+                File.WriteAllText(@"0:\debug_last_opened.txt", filePath);
+            }
+            catch { /* ignore si impossible d'écrire */ }
+
+            // Sécurité : s'assurer que le Kernel est prêt
+            if (Kernel.Instance == null)
+                return;
+
+            FileViewer viewer = new FileViewer(filePath, 200, 120);
+            Kernel.Instance.AddWindow(viewer);
         }
 
         public void Update()
         {
-            foreach (var i in Icons)
-                i.Update();
+            foreach (var icon in Icons)
+                icon.Update();
         }
 
         public void Draw(Canvas canvas)
         {
             int startX = 40;
             int startY = 40;
-
             int spacingX = 90;
             int spacingY = 90;
-
             int maxPerRow = 6;
 
-            int i = 0;
-
-            foreach (var icon in Icons)
+            for (int i = 0; i < Icons.Count; i++)
             {
                 int col = i % maxPerRow;
                 int row = i / maxPerRow;
 
-                icon.X = startX + col * spacingX;
-                icon.Y = startY + row * spacingY;
+                Icons[i].X = startX + col * spacingX;
+                Icons[i].Y = startY + row * spacingY;
 
-                icon.Draw(canvas);
-                i++;
+                Icons[i].Draw(canvas);
             }
         }
     }

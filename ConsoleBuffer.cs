@@ -1,66 +1,65 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace filesys.System
 {
     public class ConsoleBuffer
     {
-        private string[] lines;
-        private int capacity;
-        private int writeIndex = 0;
-        private int count = 0;
+        private List<string> lines = new List<string>();
 
-        public ConsoleBuffer(int maxLines)
+        private int maxLines;
+
+        public ConsoleBuffer(int max)
         {
-            capacity = maxLines;
-            lines = new string[capacity];
+            maxLines = max;
         }
 
+        // =========================================================
+        // WRITE
+        // =========================================================
         public void WriteLine(string text)
         {
-            try
-            {
-                if (text == null)
-                    text = "";
+            if (text == null) text = "";
 
-                if (text.Length > 256)
-                    text = text.Substring(0, 256);
+            lines.Add(text);
 
-                lines[writeIndex] = text;
-
-                writeIndex++;
-                if (writeIndex >= capacity)
-                    writeIndex = 0;
-
-                if (count < capacity)
-                    count++;
-            }
-            catch
-            {
-                // ignore crash
-            }
+            // ⚡ sécurité mémoire Cosmos
+            if (lines.Count > maxLines)
+                lines.RemoveAt(0);
         }
 
+        // =========================================================
+        // CLEAR
+        // =========================================================
         public void Clear()
         {
-            lines = new string[capacity];
-            writeIndex = 0;
-            count = 0;
+            lines.Clear();
         }
 
+        // =========================================================
+        // GET
+        // =========================================================
         public string[] GetLines()
         {
-            string[] result = new string[count];
+            return lines.ToArray();
+        }
 
-            int index = writeIndex - count;
-            if (index < 0)
-                index += capacity;
+        // =========================================================
+        // REPLACE ALL LINES (FIX POUR CUT)
+        // =========================================================
+        public void SetLines(string[] newLines)
+        {
+            lines.Clear();
 
-            for (int i = 0; i < count; i++)
+            if (newLines == null) return;
+
+            int limit = Math.Min(newLines.Length, maxLines);
+
+            for (int i = 0; i < limit; i++)
             {
-                result[i] = lines[(index + i) % capacity];
+                if (newLines[i] != null)
+                    lines.Add(newLines[i]);
             }
-
-            return result;
         }
     }
 }

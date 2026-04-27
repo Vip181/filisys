@@ -31,6 +31,9 @@ namespace filesys.GUI
         private int offsetX;
         private int offsetY;
 
+        // nouveau état pour la détection correcte du clic (pression puis relâche)
+        private bool pressedInside = false;
+
         public Action OnOpen;
 
         public DesktopIcon(string name, string path, IconType type, int x, int y, Action onOpen)
@@ -47,37 +50,55 @@ namespace filesys.GUI
         {
             int mx = (int)MouseManager.X;
             int my = (int)MouseManager.Y;
-            bool click = MouseManager.MouseState == MouseState.Left;
+            bool mouseDown = MouseManager.MouseState == MouseState.Left;
+
+            // calculer la zone effectivement dessinée (prend en compte le zoom)
+            int baseSize = 40;
+            int drawSize = (int)(baseSize * scale);
+            int offset = (drawSize - baseSize) / 2;
+            int drawX = X - offset;
+            int drawY = Y - offset;
 
             bool inside =
-                mx >= X && mx <= X + 50 &&
-                my >= Y && my <= Y + 50;
+                mx >= drawX && mx <= drawX + drawSize &&
+                my >= drawY && my <= drawY + drawSize;
 
-            // 🎯 HOVER ZOOM TARGET
+            // HOVER ZOOM TARGET
             targetScale = inside ? 1.2f : 1.0f;
 
-            // 🎬 SMOOTH ANIMATION
+            // SMOOTH ANIMATION
             scale += (targetScale - scale) * 0.2f;
 
-            // DRAG LOGIC (inchangé)
-            if (click && inside && !dragging)
+            // GESTION DU DRAG
+            if (mouseDown)
             {
-                dragging = true;
-                offsetX = mx - X;
-                offsetY = my - Y;
-            }
+                if (inside && !dragging)
+                {
+                    dragging = true;
+                    offsetX = mx - X;
+                    offsetY = my - Y;
+                }
 
-            if (dragging && click)
-            {
-                X = mx - offsetX;
-                Y = my - offsetY;
-            }
+                if (dragging)
+                {
+                    X = mx - offsetX;
+                    Y = my - offsetY;
+                }
 
-            if (!click)
+                // mémoriser qu'on a pressé à l'intérieur (pour valider un clic au relâchement)
+                if (inside)
+                    pressedInside = true;
+            }
+            else
             {
-                if (dragging && inside)
+                // relâchement : si on avait pressé à l'intérieur et on relâche toujours à l'intérieur => ouvrir
+                if (pressedInside && inside)
+                {
                     OnOpen?.Invoke();
+                }
 
+                // reset états
+                pressedInside = false;
                 dragging = false;
             }
         }

@@ -11,5 +11,7 @@ namespace filesys.GUI
         public static readonly Pen TextLime = new Pen(Color.Lime);
         public static readonly Pen CloseButton = new Pen(Color.Red);
         public static readonly Pen TaskbarBg = new Pen(Color.FromArgb(15, 15, 15));
+        public static readonly Pen DarkGray = new Pen(Color.DarkGray);
+        public static readonly Pen LightGray = new Pen(Color.LightGray);
     }
 }

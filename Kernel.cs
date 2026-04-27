@@ -45,15 +45,21 @@ namespace filesys
             canvas = ScreenManager.Canvas;
 
             WindowMgr = new WindowManager();
-
-            Sys.FileSystem.CosmosVFS fs = new Sys.FileSystem.CosmosVFS();
+     
+        Sys.FileSystem.CosmosVFS fs = new Sys.FileSystem.CosmosVFS();
             VFSManager.RegisterVFS(fs);
-
+           
             AddWindow(new WindowsConsole(100, 100));
             Desktop = new DesktopManager();
             Desktop.Refresh();
+            HelpFileManager.EnsureHelpFile();
+            UISettings.Load();
+            Kernel.Instance.AddWindow(new SettingsWindow(200, 150));
         }
-
+        public void AddWindow(BaseWindow window)
+        {
+            windows.Add(window);
+        }
         protected override void Run()
         {
             UpdateSystem();
@@ -175,7 +181,7 @@ namespace filesys
         {
             w.IsMinimized = !w.IsMinimized;
         }
-        public void AddWindow(BaseWindow w) => windows.Add(w);
+      
         // 🌫️ BACKGROUND BLUR
         private void DrawBackgroundBlur()
         {
