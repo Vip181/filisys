@@ -44,5 +44,11 @@ namespace filesys.GUI
             canvas.DrawLine(new Pen(Color.White), x + 20, y + 30, x + 20, y + 15);
             canvas.DrawLine(new Pen(Color.White), x + 30, y + 30, x + 30, y + 10);
         }
+        public static void Back(Canvas canvas, int x, int y)
+        {
+            canvas.DrawFilledRectangle(new Pen(Color.FromArgb(0, 0, 0, 0)), x, y, 40, 40);
+            canvas.DrawLine(new Pen(Color.White), x + 25, y + 10, x + 15, y + 20);
+            canvas.DrawLine(new Pen(Color.White), x + 25, y + 30, x + 15, y + 20);
+        }
     }
 }

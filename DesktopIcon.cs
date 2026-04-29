@@ -12,7 +12,8 @@ namespace filesys.GUI
         Folder,
         Console,
         TaskManager,
-        Custom
+        Custom,
+        Back // nouvel icone "Retour"
     }
     public class DesktopIcon
     {
@@ -131,6 +132,10 @@ namespace filesys.GUI
 
                 case IconType.TaskManager:
                     UIIcons.TaskManager(canvas, dx, dy);
+                    break;
+
+                case IconType.Back:
+                    UIIcons.Back(canvas, dx, dy);
                     break;
             }
 

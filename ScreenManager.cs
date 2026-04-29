@@ -1,7 +1,6 @@
-ï»¿using Cosmos.System;
-using Cosmos.System.Graphics;
-using filesys.System;
 using System;
+using Cosmos.System;
+using Cosmos.System.Graphics;
 
 namespace filesys
 {
@@ -9,39 +8,29 @@ namespace filesys
     {
         public static int Width { get; private set; }
         public static int Height { get; private set; }
-        public static Canvas Canvas { get; private set; }
 
-        private static AppMemoryContext memContext;
+        // Canvas pleinement qualifié pour lever toute ambiguïté
+        public static Cosmos.System.Graphics.Canvas Canvas { get; private set; }
 
         public static void Init(int width, int height)
         {
             Width = width;
             Height = height;
 
-            // CrÃ©e un contexte mÃ©moire pour le ScreenManager (pour d'autres allocations si besoin)
-            memContext = OsMemoryManager.CreateApp("ScreenManager");
-
-            // CrÃ©e le Canvas concret FullScreenCanvas
+            // Crée le Canvas plein écran (Mode et ColorDepth sont dans Cosmos.System.Graphics)
             Canvas = FullScreenCanvas.GetFullScreenCanvas(
                 new Mode(width, height, ColorDepth.ColorDepth32)
             );
 
-            // Pas besoin de track le Canvas lui-mÃªme
-           //memContext.Add((IntPtr)Canvas);
-
-            // Initialisation souris
+            // Initialiser la souris pour correspondre à la résolution
             MouseManager.ScreenWidth = (uint)width;
             MouseManager.ScreenHeight = (uint)height;
         }
 
         public static void Destroy()
         {
-            if (memContext != null)
-            {
-                OsMemoryManager.DestroyApp(memContext);
-                memContext = null;
-                Canvas = null;
-            }
+            // Desserrez les références pour permettre au GC du runtime Cosmos de libérer
+            Canvas = null;
         }
     }
 }

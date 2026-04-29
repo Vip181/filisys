@@ -10,10 +10,24 @@ namespace filesys.GUI
         public List<DesktopIcon> Icons = new List<DesktopIcon>();
 
         private string currentPath = @"0:\";
+        private Stack<string> history = new Stack<string>();
 
         public void Refresh()
         {
             Icons.Clear();
+
+            // Icône de retour si on a un historique ou un parent
+            if (history.Count > 0 || Directory.GetParent(currentPath) != null)
+            {
+                // icône "Back" : retourne au répertoire précédent (historique) ou au parent
+                Icons.Add(new DesktopIcon(
+                    "Back",
+                    "", // pas de path associé
+                    IconType.Back,
+                    0, 0,
+                    () => GoBack()
+                ));
+            }
 
             // 📁 dossiers
             foreach (var dir in FileSystemHelper.GetDirectories(currentPath))
@@ -46,10 +60,38 @@ namespace filesys.GUI
             }
         }
 
-        public void ChangeDirectory(string path)
+        // pushHistory true par défaut : empile l'ancien répertoire dans l'historique
+        public void ChangeDirectory(string path, bool pushHistory = true)
         {
+            if (pushHistory && path != currentPath)
+            {
+                history.Push(currentPath);
+            }
+
             currentPath = path;
             Refresh();
+        }
+
+        public void GoBack()
+        {
+            if (history.Count > 0)
+            {
+                var prev = history.Pop();
+                // ne pas empiler l'actuel quand on retourne
+                currentPath = prev;
+                Refresh();
+                return;
+            }
+
+            // si pas d'historique, remonter d'un niveau si possible
+            var parent = Directory.GetParent(currentPath);
+            if (parent != null)
+            {
+                // on peut empiler l'actuel pour permettre un retour
+                history.Push(currentPath);
+                currentPath = parent.FullName;
+                Refresh();
+            }
         }
 
         public static WindowManager WindowMgr;

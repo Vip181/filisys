@@ -14,7 +14,11 @@ namespace filesys.GUI
         public bool IsMinimized = false;
 
         protected bool dragging = false;
+        protected bool resizing = false;
         protected int offsetX, offsetY;
+
+        protected const int TitleBarHeight = 30;
+        protected const int ResizeSize = 10;
 
         public BaseWindow(string title, int x, int y, int w, int h)
         {
@@ -30,37 +34,58 @@ namespace filesys.GUI
             int my = (int)MouseManager.Y;
             bool pressed = MouseManager.MouseState == MouseState.Left;
 
-            // Logique de la barre de titre (toujours active pour pouvoir déplacer/réduire/fermer)
-            if (pressed)
+            // Fermer
+            if (pressed &&
+                mx >= X + Width - 25 && mx <= X + Width - 5 &&
+                my >= Y + 5 && my <= Y + 25)
             {
-                // Clic sur Fermer (X)
-                if (mx >= X + Width - 25 && mx <= X + Width - 5 && my >= Y + 5 && my <= Y + 25)
-                {
-                    IsClosed = true;
-                    return;
-                }
-
-                // Clic sur Réduire (_)
-                if (mx >= X + Width - 50 && mx <= X + Width - 30 && my >= Y + 5 && my <= Y + 25)
-                {
-                    IsMinimized = true;
-                    return;
-                }
-
-                // Dragging
-                if (!dragging && mx >= X && mx <= X + Width - 60 && my >= Y && my <= Y + 30)
-                {
-                    dragging = true;
-                    offsetX = mx - X;
-                    offsetY = my - Y;
-                }
+                IsClosed = true;
+                return;
             }
-            else dragging = false;
+
+            // Réduire
+            if (pressed &&
+                mx >= X + Width - 50 && mx <= X + Width - 30 &&
+                my >= Y + 5 && my <= Y + 25)
+            {
+                IsMinimized = true;
+                return;
+            }
+
+            // Resize (coin bas droit)
+            if (pressed &&
+                mx >= X + Width - ResizeSize &&
+                my >= Y + Height - ResizeSize)
+            {
+                resizing = true;
+            }
+
+            // Drag
+            if (pressed && !dragging && !resizing &&
+                mx >= X && mx <= X + Width - 60 &&
+                my >= Y && my <= Y + TitleBarHeight)
+            {
+                dragging = true;
+                offsetX = mx - X;
+                offsetY = my - Y;
+            }
+
+            if (!pressed)
+            {
+                dragging = false;
+                resizing = false;
+            }
 
             if (dragging)
             {
                 X = mx - offsetX;
                 Y = my - offsetY;
+            }
+
+            if (resizing)
+            {
+                Width = Math.Max(200, mx - X);
+                Height = Math.Max(150, my - Y);
             }
         }
 
@@ -68,16 +93,17 @@ namespace filesys.GUI
         {
             if (IsMinimized || IsClosed) return;
 
-            // Fond et bordures
             canvas.DrawFilledRectangle(StyleManager.WindowBg, X, Y, Width, Height);
-            canvas.DrawFilledRectangle(StyleManager.TitleBar, X, Y, Width, 30);
+            canvas.DrawFilledRectangle(StyleManager.TitleBar, X, Y, Width, TitleBarHeight);
 
-            // Titre
             canvas.DrawString(Title, PCScreenFont.Default, StyleManager.TextWhite, X + 10, Y + 8);
 
-            // Boutons de contrôle
             canvas.DrawString("_", PCScreenFont.Default, StyleManager.TextWhite, X + Width - 45, Y + 5);
             canvas.DrawString("X", PCScreenFont.Default, StyleManager.CloseButton, X + Width - 20, Y + 8);
+
+            // Coin resize visuel
+            canvas.DrawString("◢", PCScreenFont.Default, StyleManager.TextWhite,
+                X + Width - 12, Y + Height - 14);
         }
     }
 }

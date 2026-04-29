@@ -4,7 +4,7 @@ using Cosmos.System.Graphics.Fonts;
 using System;
 using System.IO;
 using System.Drawing;
-
+using System.Collections.Generic;
 namespace filesys.GUI
 {
     public class FileViewer : BaseWindow
@@ -179,7 +179,31 @@ namespace filesys.GUI
                 Title = "Editor: " + Path.GetFileName(filePath) + "*";
             }
         }
+        private string[] WrapText(string text, int maxWidth)
+{
+    int charWidth = 8; // PCScreenFont ≈ 8px
+    int maxChars = Math.Max(1, maxWidth / charWidth);
 
+    string[] words = text.Replace("\r", "").Split(' ');
+    string result = "";
+    string line = "";
+
+    for (int i = 0; i < words.Length; i++)
+    {
+        if ((line + words[i]).Length > maxChars)
+        {
+            result += line + "\n";
+            line = words[i] + " ";
+        }
+        else
+        {
+            line += words[i] + " ";
+        }
+    }
+
+    result += line;
+    return result.Split('\n');
+}
         public override void Draw(Canvas canvas)
         {
             if (IsMinimized || IsClosed) return;
@@ -202,18 +226,32 @@ namespace filesys.GUI
                 Height - 65
             );
 
-            int y = Y + 40;
-            foreach (var line in fileContent.Split('\n'))
+            int textX = X + 10;
+            int textY = Y + 40;
+            int textWidth = Width - 20;
+            int textHeight = Height - 70;
+
+            int y = textY;
+
+            foreach (var paragraph in fileContent.Split('\n'))
             {
-                if (y > Y + Height - 40) break;
-                canvas.DrawString(
-                    line,
-                    PCScreenFont.Default,
-                    new Pen(Color.Black),
-                    X + 10,
-                    y
-                );
-                y += 16;
+                string[] lines = WrapText(paragraph, textWidth);
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    if (y > textY + textHeight - 16)
+                        break; // stop si plus de place
+
+                    canvas.DrawString(
+                        lines[i],
+                        PCScreenFont.Default,
+                        new Pen(Color.Black),
+                        textX,
+                        y
+                    );
+
+                    y += 16;
+                }
             }
 
             saveButton.Draw(canvas);

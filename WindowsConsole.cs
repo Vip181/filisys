@@ -298,7 +298,14 @@ namespace filesys.GUI
                     case "touch":
                         File.Create(Path.Combine(currentDirectory, parts[1])).Close();
                         break;
-
+                    case "rescan":
+                        {
+                            if (Config.ForceApplyFromFile(out string msg))
+                                buffer.WriteLine("rescan: " + msg);
+                            else
+                                buffer.WriteLine("rescan failed: " + msg);
+                        }
+                        break;
                     case "edit":
                         string path = Path.Combine(currentDirectory, parts[1]);
                         string content = cmd.Substring(cmd.IndexOf(parts[1]) + parts[1].Length).Trim();
@@ -407,5 +414,8 @@ namespace filesys.GUI
             autoMatches.Clear();
             autoIndex = 0;
         }
+
+        // Ajout d'une méthode publique pour recevoir les messages de debug
+       
     }
 }

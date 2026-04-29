@@ -8,7 +8,7 @@ public static class HelpFileManager
     private static string[] commands =
     {
         "help","mem","ramfix","clear","res","reboot","shutdown","tasks",
-        "ls","cd","cat","touch","edit"
+        "ls","cd","cat","touch","edit","rescan"
     };
 
     public static void EnsureHelpFile()
