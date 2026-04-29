@@ -5,7 +5,7 @@ namespace filesys.GUI
 {
     public static class StyleManager
     {
-   
+
         public static readonly Pen WindowBg = new Pen(Color.FromArgb(40, 40, 40));
         public static readonly Pen TitleBar = new Pen(Color.FromArgb(25, 25, 25));
         public static readonly Pen TextWhite = new Pen(Color.White);
@@ -18,19 +18,30 @@ namespace filesys.GUI
         public static Color DesktopBackgroundColor = Color.Gray;
         // 🎨 Couleur de fond (PAS un Pen)
 
-
         public static Color GetColorFromIndex(int index)
+        {
+            switch (index)
             {
-                switch (index)
-                {
-                    case 0: return Color.Red;
-                    case 1: return Color.Blue;
-                    case 2: return Color.Beige;
-                    case 3: return Color.Green;
-                    case 4: return Color.DarkGray;
-                    case 5: return Color.LightGray;
-                    default: return Color.Gray;
-                }
+                case 0: return Color.Black;
+                case 1: return Color.White;
+                case 2: return Color.Gray;
+                case 3: return Color.DarkGray;
+                case 4: return Color.LightGray;
+
+                case 5: return Color.Red;
+                case 6: return Color.Green;
+                case 7: return Color.Blue;
+                case 8: return Color.Yellow;
+                case 9: return Color.Orange;
+
+                case 10: return Color.Purple;
+                case 11: return Color.Pink;
+                case 12: return Color.Brown;
+                case 13: return Color.Cyan;
+                case 14: return Color.Magenta;
+
+                default: return Color.Gray;
             }
         }
     }
+}

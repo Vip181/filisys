@@ -106,7 +106,8 @@ namespace filesys
                 UISettings.Load();
                 BootLog("UISettings loaded");
 
-         
+                LoadScreenColor();
+                BootLog("Screen color loaded");
                 BootLog("SettingsWindow added");
 
                 BootLog("BeforeRun COMPLETE");

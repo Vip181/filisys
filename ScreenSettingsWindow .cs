@@ -1,45 +1,109 @@
-﻿using System;
-using Cosmos.System;
+﻿using Cosmos.System;
 using Cosmos.System.Graphics;
 using Cosmos.System.Graphics.Fonts;
+using System;
 using System.Drawing;
 using System.IO;
+
 namespace filesys.GUI
 {
     public class ScreenSettingsWindow : BaseWindow
     {
-        private Color previewColor = Color.Gray;
-        private Color savedColor = Color.Gray;
-        private const string ConfigFile = @"0:\screen.cfg";
-        private Color GetColorFromIndex(int index)
-        {
-            switch (index)
-            {
-                case 0: return Color.Red;
-                case 1: return Color.Blue;
-                case 2: return Color.Beige;
-                case 3: return Color.Green;
-                case 4: return Color.DarkGray;
-                case 5: return Color.LightGray;
-                default: return Color.Gray;
-            }
-        }
-        private string[] items =
-        {
-            "Red screen",
-            "Bleu screen",
-            "Beige screen",
-            "Green screen",
-            "Dark screen",
-            "Light screen",
-        };
+        private Color[] colors;
+        private string[] colorNames;
 
         private int selectedIndex = 0;
+        private int hoverIndex = -1;
+
+        private int scrollOffset = 0;
+
+        private float scrollVelocity = 0f;
+        private int lastMouseY = 0;
+
+        private const int ItemHeight = 22;
+        private const int VisibleItems = 12;
+
+        private const string ConfigFile = @"0:\screen.cfg";
+
+        private int maxScroll => Math.Max(0, colors.Length - VisibleItems);
 
         public ScreenSettingsWindow(int x, int y)
             : base("Screen settings", x, y, 520, 360)
         {
+            LoadAllColors();
+            LoadSavedColor();
         }
+
+        // ================= COLORS =================
+        private void LoadAllColors()
+        {
+            colors = new Color[]
+            {
+        Color.Black,
+        Color.White,
+        Color.Gray,
+        Color.DarkGray,
+        Color.LightGray,
+
+        Color.Red,
+        Color.Green,
+        Color.Blue,
+        Color.Yellow,
+        Color.Orange,
+        Color.Purple,
+        Color.Pink,
+        Color.Brown,
+        Color.Cyan,
+        Color.Magenta
+            };
+
+            colorNames = new string[]
+            {
+        "Black",
+        "White",
+        "Gray",
+        "Dark Gray",
+        "Light Gray",
+        "Red",
+        "Green",
+        "Blue",
+        "Yellow",
+        "Orange",
+        "Purple",
+        "Pink",
+        "Brown",
+        "Cyan",
+        "Magenta"
+            };
+        
+
+        colorNames = new string[]
+            {
+                "Black","White","Gray","Dark Gray","Light Gray",
+                "Red","Dark Red","Green","Dark Green","Blue","Dark Blue",
+                "Yellow","Orange","Purple","Pink","Brown","Cyan","Magenta",
+                "Orange RGB","Purple RGB","Sky Blue","Deep Pink",
+                "Lime","Gold","Spring Green","Steel Blue"
+            };
+        }
+
+        private void LoadSavedColor()
+        {
+            try
+            {
+                if (File.Exists(ConfigFile))
+                {
+                    int index = int.Parse(File.ReadAllText(ConfigFile));
+                    if (index >= 0 && index < colors.Length)
+                        selectedIndex = index;
+                }
+
+                StyleManager.DesktopBackgroundColor = colors[selectedIndex];
+            }
+            catch { }
+        }
+
+        // ================= UPDATE =================
 
         public override void Update()
         {
@@ -50,104 +114,127 @@ namespace filesys.GUI
             int my = (int)MouseManager.Y;
             bool click = MouseManager.MouseState == MouseState.Left;
 
-            // --- Liste (clic sélection)
             int listX = X + 10;
             int listY = Y + 40;
-            int itemH = 26;
+            int listW = 260;
+            int listH = VisibleItems * ItemHeight;
 
-            for (int i = 0; i < items.Length; i++)
+            // ================= HOVER =================
+            hoverIndex = -1;
+
+            if (mx >= listX && mx <= listX + listW &&
+                my >= listY && my <= listY + listH)
             {
-                int iy = listY + i * itemH;
-                if (click &&
-                    mx >= listX && mx <= listX + 180 &&
-                    my >= iy && my <= iy + itemH)
-                {
-                    selectedIndex = i;
-                }
+                hoverIndex = (my - listY) / ItemHeight + scrollOffset;
+
+                if (hoverIndex >= colors.Length)
+                    hoverIndex = -1;
             }
 
-            // --- Boutons à droite
+            // ================= CLICK SELECT =================
+            if (click && hoverIndex != -1)
+            {
+                selectedIndex = hoverIndex;
+                StyleManager.DesktopBackgroundColor = colors[selectedIndex];
+            }
+
+            // ================= SCROLL (COSMOS SAFE) =================
+            int scrollDelta = my - lastMouseY;
+            lastMouseY = my;
+
+            if (mx >= listX && mx <= listX + listW &&
+                my >= listY && my <= listY + listH)
+            {
+                if (scrollDelta != 0)
+                    scrollVelocity += scrollDelta * 0.5f;
+            }
+
+            // inertia
+            scrollVelocity *= 0.85f;
+
+            scrollOffset += (int)scrollVelocity;
+
+            if (scrollOffset < 0) scrollOffset = 0;
+            if (scrollOffset > maxScroll) scrollOffset = maxScroll;
+
+            if (Math.Abs(scrollVelocity) < 0.05f)
+                scrollVelocity = 0;
+
+            // ================= BUTTONS =================
             if (click)
             {
-                if (ButtonHit("test", X + Width - 120, Y + 60)) Test();
-                if (ButtonHit("save", X + Width - 120, Y + 100)) Save();
-                if (ButtonHit("reset", X + Width - 120, Y + 140)) Reset();
-                if (ButtonHit("Ok", X + Width - 120, Y + Height - 50)) Ok();
+                if (ButtonHit(X + Width - 120, Y + 60)) Save();
+                if (ButtonHit(X + Width - 120, Y + 100)) Reset();
+                if (ButtonHit(X + Width - 120, Y + Height - 50)) IsClosed = true;
             }
         }
 
-        private bool ButtonHit(string txt, int bx, int by)
-        {
-            int bw = 100;
-            int bh = 28;
-
-            int mx = (int)MouseManager.X;
-            int my = (int)MouseManager.Y;
-
-            return mx >= bx && mx <= bx + bw &&
-                   my >= by && my <= by + bh;
-        }
+        // ================= DRAW =================
 
         public override void Draw(Canvas canvas)
         {
             base.Draw(canvas);
             if (IsClosed || IsMinimized) return;
 
-            // --- Panneau gauche (liste)
             int listX = X + 10;
             int listY = Y + 40;
-            int listW = 200;
-            int listH = Height - 60;
+            int listW = 260;
 
-            canvas.DrawFilledRectangle(new Pen(Color.FromArgb(255, 240, 200)),
-                listX, listY, listW, listH);
+            canvas.DrawFilledRectangle(
+                new Pen(Color.DarkGray),
+                listX, listY,
+                listW, VisibleItems * ItemHeight
+            );
 
-            // Items
-            int itemH = 26;
-            for (int i = 0; i < items.Length; i++)
+            for (int i = 0; i < VisibleItems; i++)
             {
-                int iy = listY + i * itemH;
+                int index = i + scrollOffset;
+                if (index >= colors.Length) break;
 
-                if (i == selectedIndex)
+                int iy = listY + i * ItemHeight;
+
+                Color c = colors[index];
+
+                // hover preview (brighten)
+                if (index == hoverIndex)
                 {
                     canvas.DrawFilledRectangle(
                         new Pen(Color.Gray),
-                        listX + 5, iy + 4, listW - 10, itemH - 6
+                        listX, iy, listW, ItemHeight
                     );
                 }
 
+                // selected highlight
+                if (index == selectedIndex)
+                {
+                    canvas.DrawFilledRectangle(
+                        new Pen(Color.Gray),
+                        listX, iy, listW, ItemHeight
+                    );
+                }
+
+                // color box
+                canvas.DrawFilledRectangle(
+                    new Pen(colors[index]),
+                    listX + 4, iy + 4, 14, 14
+                );
+
+                // text
                 canvas.DrawString(
-                    items[i],
+                    colorNames[index],
                     PCScreenFont.Default,
                     new Pen(Color.White),
-                    listX + 10,
-                    iy + 8
+                    listX + 24,
+                    iy + 5
                 );
             }
 
-            // --- Scrollbar (visuelle)
-            canvas.DrawFilledRectangle(
-                new Pen(Color.LightGray),
-                listX + listW + 2,
-                listY,
-                12,
-                listH
-            );
-
-            canvas.DrawFilledRectangle(
-                new Pen(Color.Orange),
-                listX + listW + 2,
-                listY + 30,
-                12,
-                60
-            );
-
-            // --- Boutons à droite
-            DrawButton(canvas, "test", X + Width - 120, Y + 60);
-            DrawButton(canvas, "save", X + Width - 120, Y + 100);
-            DrawButton(canvas, "reset", X + Width - 120, Y + 140);
-            DrawButton(canvas, "Ok", X + Width - 120, Y + Height - 50);
+            DrawButton(canvas, "Save", X + Width - 120, Y + 60);
+            DrawButton(canvas, "Reset", X + Width - 120, Y + 100);
+            DrawButton(canvas, "Close", X + Width - 120, Y + Height - 50);
         }
+
+        // ================= UI =================
 
         private void DrawButton(Canvas canvas, string text, int x, int y)
         {
@@ -160,46 +247,36 @@ namespace filesys.GUI
                 text,
                 PCScreenFont.Default,
                 new Pen(Color.White),
-                x + 30,
+                x + 25,
                 y + 7
             );
         }
 
-        // --- Actions ---
-        private void Test()
+        private bool ButtonHit(int x, int y)
         {
-            previewColor = GetColorFromIndex(selectedIndex);
+            int mx = (int)MouseManager.X;
+            int my = (int)MouseManager.Y;
 
-            
-            StyleManager.DesktopBackgroundColor = (previewColor);
+            return mx >= x && mx <= x + 100 &&
+                   my >= y && my <= y + 28;
         }
+
+        // ================= ACTIONS =================
 
         private void Save()
         {
             try
             {
-                savedColor = GetColorFromIndex(selectedIndex);
-
-                // Sauvegarde simple (nom du thème)
-               File.WriteAllText(ConfigFile, selectedIndex.ToString());
-
-                // Appliquer définitivement
-                StyleManager.DesktopBackgroundColor = savedColor;
+                File.WriteAllText(ConfigFile, selectedIndex.ToString());
+                StyleManager.DesktopBackgroundColor = colors[selectedIndex];
             }
-            catch
-            {
-                // Cosmos : ignorer silencieusement
-            }
+            catch { }
         }
 
         private void Reset()
         {
             selectedIndex = 0;
-        }
-
-        private void Ok()
-        {
-            IsClosed = true;
+            StyleManager.DesktopBackgroundColor = colors[0];
         }
     }
 }
