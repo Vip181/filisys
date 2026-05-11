@@ -72,13 +72,14 @@ namespace filesys.GUI
 
             if (Type == IconType.Folder)
             {
-                canvas.DrawFilledRectangle(FolderColor, X + 15, Y + 15, 40, 30);
-                canvas.DrawFilledRectangle(FolderColor, X + 20, Y + 8, 25, 10);
+                // Même icône que le menu démarrer
+                if (StartMenuIcons.Explorer != null)
+                    canvas.DrawImageAlpha(StartMenuIcons.Explorer, X + 18, Y + 6);
             }
             else if (Type == IconType.File)
             {
-                canvas.DrawFilledRectangle(FileColor, X + 20, Y + 8, 32, 42);
-                canvas.DrawRectangle(Black, X + 20, Y + 8, 32, 42);
+                if (StartMenuIcons.Console != null)
+                    canvas.DrawImageAlpha(StartMenuIcons.TEXTDCOCUMENT, X + 18, Y + 6);
             }
             else if (Type == IconType.Back)
             {
