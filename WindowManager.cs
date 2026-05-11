@@ -5,22 +5,70 @@ namespace filesys.GUI
 {
     public class WindowManager
     {
-        // On n'utilise plus de liste privée ici, on utilise Kernel.Instance.windows
-        public void Draw(Canvas canvas)
-        {
-            // On dessine chaque fenêtre de la liste globale
-            foreach (var w in Kernel.Instance.windows)
-            {
-                // OPTIMISATION MÉMOIRE/CPU : 
-                // Si réduit, on ne déclenche même pas le code de dessin
-                if (w.IsMinimized || w.IsClosed) continue;
+        private List<BaseWindow> windows = new List<BaseWindow>();
 
-                w.Draw(canvas);
+        public int Count
+        {
+            get { return windows.Count; }
+        }
+
+        public void Add(BaseWindow window)
+        {
+            if (window == null)
+                return;
+
+            if (windows.Count >= 8)
+                return;
+
+            for (int i = 0; i < windows.Count; i++)
+            {
+                if (windows[i].Title == window.Title)
+                {
+                    windows[i].IsMinimized = false;
+                    return;
+                }
+            }
+
+            windows.Add(window);
+        }
+
+        public List<BaseWindow> GetWindows()
+        {
+            return windows;
+        }
+
+        public void Update()
+        {
+            for (int i = windows.Count - 1; i >= 0; i--)
+            {
+                BaseWindow w = windows[i];
+
+                if (w == null || w.IsClosed)
+                {
+                    windows.RemoveAt(i);
+                    continue;
+                }
+
+                if (!w.IsMinimized)
+                    w.Update();
             }
         }
 
-        // Note: La méthode Add n'est plus nécessaire ici si tu utilises Kernel.Instance.AddWindow
-        public void Add(BaseWindow window) => Kernel.Instance.AddWindow(window);
+        public void Draw(Canvas canvas)
+        {
+            if (canvas == null)
+                return;
+
+            for (int i = 0; i < windows.Count; i++)
+            {
+                if (windows[i] == null)
+                    continue;
+
+                if (windows[i].IsClosed)
+                    continue;
+
+                windows[i].Draw(canvas);
+            }
+        }
     }
 }
-

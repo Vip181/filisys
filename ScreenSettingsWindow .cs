@@ -9,246 +9,284 @@ namespace filesys.GUI
 {
     public class ScreenSettingsWindow : BaseWindow
     {
-        private Color[] colors;
-        private string[] colorNames;
-
-        private int selectedIndex = 0;
-        private int hoverIndex = -1;
-
-        private int scrollOffset = 0;
-
-        private float scrollVelocity = 0f;
-        private int lastMouseY = 0;
-
-        private const int ItemHeight = 22;
-        private const int VisibleItems = 12;
-
+        // ================= CONFIG =================
         private const string ConfigFile = @"0:\screen.cfg";
-
-        private int maxScroll => Math.Max(0, colors.Length - VisibleItems);
-
-        public ScreenSettingsWindow(int x, int y)
-            : base("Screen settings", x, y, 520, 360)
-        {
-            LoadAllColors();
-            LoadSavedColor();
-        }
+        private const int DefaultColorIndex = 0;
+        private const int DefaultWidth = 1024;   // ⚠ SAFE
+        private const int DefaultHeight = 768;   // ⚠ SAFE
 
         // ================= COLORS =================
-        private void LoadAllColors()
+        private Color[] colors;
+        private string[] colorNames;
+        private int selectedColorIndex = 0;
+        private int hoverColorIndex = -1;
+        private int colorScrollOffset = 0;
+
+        // ================= RESOLUTIONS =================
+        private (int W, int H)[] resolutions;
+        private string[] resolutionNames;
+        private int selectedResolutionIndex = 0;
+        private int hoverResolutionIndex = -1;
+        private int resolutionScrollOffset = 0;
+
+        // ================= UI =================
+        private const int ItemHeight = 22;
+        private const int VisibleItems = 10;
+
+        public ScreenSettingsWindow(int x, int y)
+            : base("Screen settings", x, y, 560, 380)
+        {
+            LoadColors();
+            LoadResolutions();
+            EnsureConfigFile();
+            LoadConfig();
+        }
+
+        // =====================================================
+        // LOAD
+        // =====================================================
+        private void LoadColors()
         {
             colors = new Color[]
             {
-        Color.Black,
-        Color.White,
-        Color.Gray,
-        Color.DarkGray,
-        Color.LightGray,
-
-        Color.Red,
-        Color.Green,
-        Color.Blue,
-        Color.Yellow,
-        Color.Orange,
-        Color.Purple,
-        Color.Pink,
-        Color.Brown,
-        Color.Cyan,
-        Color.Magenta
+                Color.Black, Color.White, Color.Gray, Color.DarkGray, Color.LightGray,
+                Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Orange,
+                Color.Purple, Color.Pink, Color.Brown, Color.Cyan, Color.Magenta
             };
 
             colorNames = new string[]
             {
-        "Black",
-        "White",
-        "Gray",
-        "Dark Gray",
-        "Light Gray",
-        "Red",
-        "Green",
-        "Blue",
-        "Yellow",
-        "Orange",
-        "Purple",
-        "Pink",
-        "Brown",
-        "Cyan",
-        "Magenta"
-            };
-        
-
-        colorNames = new string[]
-            {
                 "Black","White","Gray","Dark Gray","Light Gray",
-                "Red","Dark Red","Green","Dark Green","Blue","Dark Blue",
-                "Yellow","Orange","Purple","Pink","Brown","Cyan","Magenta",
-                "Orange RGB","Purple RGB","Sky Blue","Deep Pink",
-                "Lime","Gold","Spring Green","Steel Blue"
+                "Red","Green","Blue","Yellow","Orange",
+                "Purple","Pink","Brown","Cyan","Magenta"
             };
         }
 
-        private void LoadSavedColor()
+        private void LoadResolutions()
         {
+            // ⚠️ Résolutions SAFE sous VMware
+            resolutions = new (int, int)[]
+            {
+                (800, 600),
+                (1024, 768),
+                (1280, 720),
+                (1366, 768)
+            };
+
+            resolutionNames = new string[]
+            {
+                "800 x 600",
+                "1024 x 768",
+                "1280 x 720",
+                "1366 x 768"
+            };
+        }
+
+        private void EnsureConfigFile()
+        {
+            if (File.Exists(ConfigFile))
+                return;
+
             try
             {
-                if (File.Exists(ConfigFile))
+                File.WriteAllLines(ConfigFile, new string[]
                 {
-                    int index = int.Parse(File.ReadAllText(ConfigFile));
-                    if (index >= 0 && index < colors.Length)
-                        selectedIndex = index;
-                }
-
-                StyleManager.DesktopBackgroundColor = colors[selectedIndex];
+                    DefaultColorIndex.ToString(),
+                    $"{DefaultWidth},{DefaultHeight}"
+                });
             }
             catch { }
         }
 
-        // ================= UPDATE =================
+        private void LoadConfig()
+        {
+            try
+            {
+                string[] lines = File.ReadAllLines(ConfigFile);
 
+                if (lines.Length >= 1)
+                    selectedColorIndex = int.Parse(lines[0]);
+
+                if (lines.Length >= 2)
+                {
+                    string[] res = lines[1].Split(',');
+                    int w = int.Parse(res[0]);
+                    int h = int.Parse(res[1]);
+
+                    for (int i = 0; i < resolutions.Length; i++)
+                    {
+                        if (resolutions[i].W == w && resolutions[i].H == h)
+                        {
+                            selectedResolutionIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                StyleManager.DesktopBackgroundColor = colors[selectedColorIndex];
+            }
+            catch
+            {
+                selectedColorIndex = DefaultColorIndex;
+                selectedResolutionIndex = 0;
+            }
+        }
+
+        // =====================================================
+        // UPDATE
+        // =====================================================
         public override void Update()
         {
             base.Update();
             if (IsClosed || IsMinimized) return;
 
-            int mx = (int)MouseManager.X;
-            int my = (int)MouseManager.Y;
             bool click = MouseManager.MouseState == MouseState.Left;
 
-            int listX = X + 10;
-            int listY = Y + 40;
-            int listW = 260;
-            int listH = VisibleItems * ItemHeight;
+            // ---- COLOR LIST ----
+            UpdateListBox(
+                X + 10, Y + 40,
+                ref hoverColorIndex,
+                ref selectedColorIndex,
+                ref colorScrollOffset,
+                colors.Length,
+                click
+            );
 
-            // ================= HOVER =================
-            hoverIndex = -1;
+            if (click && hoverColorIndex != -1)
+                StyleManager.DesktopBackgroundColor = colors[selectedColorIndex];
 
-            if (mx >= listX && mx <= listX + listW &&
-                my >= listY && my <= listY + listH)
+            // ---- RESOLUTION LIST ----
+            UpdateListBox(
+                X + 300, Y + 40,
+                ref hoverResolutionIndex,
+                ref selectedResolutionIndex,
+                ref resolutionScrollOffset,
+                resolutions.Length,
+                click
+            );
+
+            // ---- OK BUTTON ----
+            if (click && ButtonHit(X + Width / 2 - 50, Y + Height - 45))
             {
-                hoverIndex = (my - listY) / ItemHeight + scrollOffset;
-
-                if (hoverIndex >= colors.Length)
-                    hoverIndex = -1;
-            }
-
-            // ================= CLICK SELECT =================
-            if (click && hoverIndex != -1)
-            {
-                selectedIndex = hoverIndex;
-                StyleManager.DesktopBackgroundColor = colors[selectedIndex];
-            }
-
-            // ================= SCROLL (COSMOS SAFE) =================
-            int scrollDelta = my - lastMouseY;
-            lastMouseY = my;
-
-            if (mx >= listX && mx <= listX + listW &&
-                my >= listY && my <= listY + listH)
-            {
-                if (scrollDelta != 0)
-                    scrollVelocity += scrollDelta * 0.5f;
-            }
-
-            // inertia
-            scrollVelocity *= 0.85f;
-
-            scrollOffset += (int)scrollVelocity;
-
-            if (scrollOffset < 0) scrollOffset = 0;
-            if (scrollOffset > maxScroll) scrollOffset = maxScroll;
-
-            if (Math.Abs(scrollVelocity) < 0.05f)
-                scrollVelocity = 0;
-
-            // ================= BUTTONS =================
-            if (click)
-            {
-                if (ButtonHit(X + Width - 120, Y + 60)) Save();
-                if (ButtonHit(X + Width - 120, Y + 100)) Reset();
-                if (ButtonHit(X + Width - 120, Y + Height - 50)) IsClosed = true;
+                Save();
+                IsClosed = true;
             }
         }
 
-        // ================= DRAW =================
+        private void UpdateListBox(
+            int x, int y,
+            ref int hover,
+            ref int selected,
+            ref int scroll,
+            int count,
+            bool click)
+        {
+            hover = -1;
 
+            int mx = (int)MouseManager.X;
+            int my = (int)MouseManager.Y;
+
+            if (mx >= x && mx <= x + 240 &&
+                my >= y && my <= y + VisibleItems * ItemHeight)
+            {
+                hover = (my - y) / ItemHeight + scroll;
+                if (hover >= count) hover = -1;
+            }
+
+            if (click && hover != -1)
+                selected = hover;
+        }
+
+        // =====================================================
+        // DRAW
+        // =====================================================
         public override void Draw(Canvas canvas)
         {
             base.Draw(canvas);
             if (IsClosed || IsMinimized) return;
 
-            int listX = X + 10;
-            int listY = Y + 40;
-            int listW = 260;
+            DrawListBox(
+                canvas,
+                X + 10, Y + 40,
+                colors.Length,
+                colorScrollOffset,
+                hoverColorIndex,
+                selectedColorIndex,
+                i => colorNames[i],
+                i => colors[i]
+            );
 
+            DrawListBox(
+                canvas,
+                X + 300, Y + 40,
+                resolutions.Length,
+                resolutionScrollOffset,
+                hoverResolutionIndex,
+                selectedResolutionIndex,
+                i => resolutionNames[i],
+                null
+            );
+
+            DrawButton(canvas, "OK", X + Width / 2 - 50, Y + Height - 45);
+        }
+
+        private void DrawListBox(
+            Canvas canvas,
+            int x, int y,
+            int count,
+            int scroll,
+            int hover,
+            int selected,
+            Func<int, string> text,
+            Func<int, Color> colorBox)
+        {
             canvas.DrawFilledRectangle(
                 new Pen(Color.DarkGray),
-                listX, listY,
-                listW, VisibleItems * ItemHeight
+                x, y, 240, VisibleItems * ItemHeight
             );
 
             for (int i = 0; i < VisibleItems; i++)
             {
-                int index = i + scrollOffset;
-                if (index >= colors.Length) break;
+                int index = i + scroll;
+                if (index >= count) break;
 
-                int iy = listY + i * ItemHeight;
+                int iy = y + i * ItemHeight;
 
-                Color c = colors[index];
-
-                // hover preview (brighten)
-                if (index == hoverIndex)
-                {
+                if (index == hover || index == selected)
                     canvas.DrawFilledRectangle(
                         new Pen(Color.Gray),
-                        listX, iy, listW, ItemHeight
+                        x, iy, 240, ItemHeight
                     );
-                }
 
-                // selected highlight
-                if (index == selectedIndex)
-                {
+                if (colorBox != null)
                     canvas.DrawFilledRectangle(
-                        new Pen(Color.Gray),
-                        listX, iy, listW, ItemHeight
+                        new Pen(colorBox(index)),
+                        x + 4, iy + 4, 14, 14
                     );
-                }
 
-                // color box
-                canvas.DrawFilledRectangle(
-                    new Pen(colors[index]),
-                    listX + 4, iy + 4, 14, 14
-                );
-
-                // text
                 canvas.DrawString(
-                    colorNames[index],
+                    text(index),
                     PCScreenFont.Default,
                     new Pen(Color.White),
-                    listX + 24,
+                    x + (colorBox != null ? 24 : 10),
                     iy + 5
                 );
             }
-
-            DrawButton(canvas, "Save", X + Width - 120, Y + 60);
-            DrawButton(canvas, "Reset", X + Width - 120, Y + 100);
-            DrawButton(canvas, "Close", X + Width - 120, Y + Height - 50);
         }
-
-        // ================= UI =================
 
         private void DrawButton(Canvas canvas, string text, int x, int y)
         {
             canvas.DrawFilledRectangle(
                 new Pen(Color.Gray),
-                x, y, 100, 28
+                x, y, 100, 30
             );
 
             canvas.DrawString(
                 text,
                 PCScreenFont.Default,
                 new Pen(Color.White),
-                x + 25,
-                y + 7
+                x + 35,
+                y + 8
             );
         }
 
@@ -258,25 +296,25 @@ namespace filesys.GUI
             int my = (int)MouseManager.Y;
 
             return mx >= x && mx <= x + 100 &&
-                   my >= y && my <= y + 28;
+                   my >= y && my <= y + 30;
         }
 
-        // ================= ACTIONS =================
-
+        // =====================================================
+        // SAVE
+        // =====================================================
         private void Save()
         {
             try
             {
-                File.WriteAllText(ConfigFile, selectedIndex.ToString());
-                StyleManager.DesktopBackgroundColor = colors[selectedIndex];
+                var res = resolutions[selectedResolutionIndex];
+
+                File.WriteAllLines(ConfigFile, new string[]
+                {
+                    selectedColorIndex.ToString(),
+                    $"{res.W},{res.H}"
+                });
             }
             catch { }
-        }
-
-        private void Reset()
-        {
-            selectedIndex = 0;
-            StyleManager.DesktopBackgroundColor = colors[0];
         }
     }
 }

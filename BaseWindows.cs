@@ -12,7 +12,9 @@ namespace filesys.GUI
         public string Title;
         public bool IsClosed = false;
         public bool IsMinimized = false;
-
+        public int ProcessId = 0;
+        public int MemoryUsageMb = 1;
+        public bool Killable = true;
         protected bool dragging = false;
         protected bool resizing = false;
         protected int offsetX, offsetY;

@@ -1,8 +1,8 @@
 ﻿using Cosmos.System;
 using Cosmos.System.Graphics;
+using Cosmos.System.Graphics.Fonts;
 using System;
 using System.Drawing;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace filesys.GUI
 {
@@ -10,143 +10,88 @@ namespace filesys.GUI
     {
         File,
         Folder,
-        Console,
-        TaskManager,
-        Custom,
-        Back // nouvel icone "Retour"
+        Back
     }
+
     public class DesktopIcon
     {
-        public IconType Type;
         public string Name;
         public string Path;
-        public bool IsFolder;
-        private float scale = 1f;
-        private float targetScale = 1f;
+        public IconType Type;
         public int X;
         public int Y;
 
-        private int size = 50;
+        private Action onClick;
+        private bool lastClick = false;
 
-        private bool dragging = false;
-        private int offsetX;
-        private int offsetY;
+        private const int Width = 70;
+        private const int Height = 70;
 
-        // nouveau état pour la détection correcte du clic (pression puis relâche)
-        private bool pressedInside = false;
+        private static Pen White = new Pen(Color.White);
+        private static Pen Black = new Pen(Color.Black);
+        private static Pen FolderColor = new Pen(Color.Goldenrod);
+        private static Pen FileColor = new Pen(Color.LightGray);
+        private static Pen BackColor = new Pen(Color.LightBlue);
 
-        public Action OnOpen;
-
-        public DesktopIcon(string name, string path, IconType type, int x, int y, Action onOpen)
+        public DesktopIcon(string name, string path, IconType type, int x, int y, Action clickAction)
         {
             Name = name;
             Path = path;
             Type = type;
             X = x;
             Y = y;
-            OnOpen = onOpen;
+            onClick = clickAction;
         }
 
         public void Update()
         {
             int mx = (int)MouseManager.X;
             int my = (int)MouseManager.Y;
-            bool mouseDown = MouseManager.MouseState == MouseState.Left;
 
-            // calculer la zone effectivement dessinée (prend en compte le zoom)
-            int baseSize = 40;
-            int drawSize = (int)(baseSize * scale);
-            int offset = (drawSize - baseSize) / 2;
-            int drawX = X - offset;
-            int drawY = Y - offset;
+            bool click = MouseManager.MouseState == MouseState.Left;
 
-            bool inside =
-                mx >= drawX && mx <= drawX + drawSize &&
-                my >= drawY && my <= drawY + drawSize;
+            bool hover =
+                mx >= X &&
+                mx <= X + Width &&
+                my >= Y &&
+                my <= Y + Height;
 
-            // HOVER ZOOM TARGET
-            targetScale = inside ? 1.2f : 1.0f;
-
-            // SMOOTH ANIMATION
-            scale += (targetScale - scale) * 0.2f;
-
-            // GESTION DU DRAG
-            if (mouseDown)
+            if (click && !lastClick && hover)
             {
-                if (inside && !dragging)
-                {
-                    dragging = true;
-                    offsetX = mx - X;
-                    offsetY = my - Y;
-                }
-
-                if (dragging)
-                {
-                    X = mx - offsetX;
-                    Y = my - offsetY;
-                }
-
-                // mémoriser qu'on a pressé à l'intérieur (pour valider un clic au relâchement)
-                if (inside)
-                    pressedInside = true;
+                if (onClick != null)
+                    onClick();
             }
-            else
-            {
-                // relâchement : si on avait pressé à l'intérieur et on relâche toujours à l'intérieur => ouvrir
-                if (pressedInside && inside)
-                {
-                    OnOpen?.Invoke();
-                }
 
-                // reset états
-                pressedInside = false;
-                dragging = false;
-            }
+            lastClick = click;
         }
 
         public void Draw(Canvas canvas)
         {
-            int size = 40;
+            if (canvas == null)
+                return;
 
-            int drawSize = (int)(size * scale);
-            int offset = (drawSize - size) / 2;
-
-            int dx = X - offset;
-            int dy = Y - offset;
-           
-
-            // ICON (zoom appliqué)
-            switch (Type)
+            if (Type == IconType.Folder)
             {
-                case IconType.Console:
-                    UIIcons.Console(canvas, dx, dy);
-                    break;
-
-                case IconType.File:
-                    UIIcons.File(canvas, dx, dy);
-                    break;
-
-                case IconType.Folder:
-                    UIIcons.Folder(canvas, dx, dy);
-                    break;
-
-                case IconType.TaskManager:
-                    UIIcons.TaskManager(canvas, dx, dy);
-                    break;
-
-                case IconType.Back:
-                    UIIcons.Back(canvas, dx, dy);
-                    break;
+                canvas.DrawFilledRectangle(FolderColor, X + 15, Y + 15, 40, 30);
+                canvas.DrawFilledRectangle(FolderColor, X + 20, Y + 8, 25, 10);
+            }
+            else if (Type == IconType.File)
+            {
+                canvas.DrawFilledRectangle(FileColor, X + 20, Y + 8, 32, 42);
+                canvas.DrawRectangle(Black, X + 20, Y + 8, 32, 42);
+            }
+            else if (Type == IconType.Back)
+            {
+                canvas.DrawFilledRectangle(BackColor, X + 15, Y + 15, 40, 30);
+                canvas.DrawString("<", PCScreenFont.Default, Black, X + 30, Y + 25);
             }
 
-            // label reste fixe
-            canvas.DrawString(
-                Name,
-                Cosmos.System.Graphics.Fonts.PCScreenFont.Default,
-                new Pen(Color.White),
-                X,
-                Y + 55
-            );
+            string label = Name;
+
+            if (label.Length > 10)
+                label = label.Substring(0, 10);
+
+            canvas.DrawString(label, PCScreenFont.Default, White, X, Y + 58);
         }
     }
 }

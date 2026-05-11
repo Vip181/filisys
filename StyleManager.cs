@@ -16,6 +16,9 @@ namespace filesys.GUI
         public static readonly Pen LightGray = new Pen(Color.LightGray);
         public static readonly Pen TextBlack = new Pen(Color.Black); // ajouté
         public static Color DesktopBackgroundColor = Color.Gray;
+
+        public static Canvas Canvas { get; internal set; }
+
         // 🎨 Couleur de fond (PAS un Pen)
 
         public static Color GetColorFromIndex(int index)

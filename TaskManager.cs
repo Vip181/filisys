@@ -1,104 +1,189 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Cosmos.Core;
+using Cosmos.System;
 using Cosmos.System.Graphics;
-using System.Drawing;
-using filesys.System;
 using Cosmos.System.Graphics.Fonts;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
 
 namespace filesys.GUI
 {
-    public class TaskManager : BaseWindow
+    public class TaskManagerWindow : BaseWindow
     {
-        // On définit des couleurs réutilisables pour le style
-        private Color colorGraphBg = Color.FromArgb(40, 40, 40);
-        private Color colorRowAlt = Color.FromArgb(35, 35, 35);
+        private WindowManager windowManager;
 
-        public TaskManager(int x, int y) : base("Task Manager", x, y, 400, 350)
+        private bool lastClick = false;
+
+        private int frameCounter = 0;
+        private int fps = 0;
+        private int lastSecond = 0;
+
+        private static Pen White = new Pen(Color.White);
+        private static Pen Gray = new Pen(Color.Gray);
+        private static Pen Dark = new Pen(Color.FromArgb(35, 35, 35));
+        private static Pen Header = new Pen(Color.FromArgb(45, 45, 45));
+        private static Pen Green = new Pen(Color.Lime);
+        private static Pen Red = new Pen(Color.Red);
+        private static Pen Yellow = new Pen(Color.Yellow);
+        WindowManager WindowMgr;
+        public TaskManagerWindow(WindowManager manager, int x, int y)
+            : base("Task Manager", x, y, 420, 360)
         {
-            // Taille par défaut fixée à 400x350
+            windowManager = manager;
+        }
+
+        public override void Update()
+        {
+            base.Update();
+
+            if (IsClosed || IsMinimized)
+                return;
+
+            UpdateFPS();
+
+            int mx = (int)MouseManager.X;
+            int my = (int)MouseManager.Y;
+            bool click = MouseManager.MouseState == MouseState.Left;
+
+            if (click && !lastClick)
+            {
+                KillProcessClick(mx, my);
+            }
+
+            lastClick = click;
         }
 
         public override void Draw(Canvas canvas)
         {
-            if (IsMinimized) return;
-
-            // 1. Dessiner la base de la fenêtre (Titre, bordures, fond)
             base.Draw(canvas);
 
-            int yOffset = Y + 45;
+            if (IsClosed || IsMinimized)
+                return;
 
-            // --- SECTION : EN-TÊTE ---
-            canvas.DrawString("PROCESSUS", PCScreenFont.Default, StyleManager.TextWhite, X + 15, yOffset);
-            canvas.DrawString("ETAT", PCScreenFont.Default, StyleManager.TextWhite, X + 200, yOffset);
-            canvas.DrawString("ID", PCScreenFont.Default, StyleManager.TextWhite, X + 330, yOffset);
+            DrawStats(canvas);
+            DrawProcessList(canvas);
+        }
 
-            yOffset += 20;
-            canvas.DrawLine(StyleManager.TextWhite, X + 10, yOffset, X + Width - 10, yOffset);
-            yOffset += 10;
+        private void DrawStats(Canvas canvas)
+        {
+            int usedMb = (int)(GCImplementation.GetUsedRAM() / 1024 / 1024);
+            int totalMb = 253;
 
-            // --- SECTION : LISTE RÉELLE DES FENÊTRES ---
-            // On récupère la liste des fenêtres directement depuis le Kernel
-            var windows = Kernel.Instance.GetWindows();
+            canvas.DrawString("CPU : " + GetFakeCpuPercent() + "%", PCScreenFont.Default, White, X + 15, Y + 40);
+            canvas.DrawString("FPS : " + fps, PCScreenFont.Default, White, X + 120, Y + 40);
+            canvas.DrawString("GC  : " + usedMb + " MB / " + totalMb + " MB", PCScreenFont.Default, White, X + 220, Y + 40);
+
+            canvas.DrawRectangle(Gray, X + 15, Y + 60, 180, 14);
+
+            int barWidth = usedMb * 180 / totalMb;
+            if (barWidth > 180)
+                barWidth = 180;
+
+            canvas.DrawFilledRectangle(Green, X + 15, Y + 60, barWidth, 14);
+        }
+
+        private void DrawProcessList(Canvas canvas)
+        {
+            int startY = Y + 90;
+
+            canvas.DrawFilledRectangle(Header, X + 10, startY, Width - 20, 22);
+
+            canvas.DrawString("PROCESSUS", PCScreenFont.Default, White, X + 15, startY + 6);
+            canvas.DrawString("RAM", PCScreenFont.Default, White, X + 180, startY + 6);
+            canvas.DrawString("PID", PCScreenFont.Default, White, X + 240, startY + 6);
+            canvas.DrawString("KILL", PCScreenFont.Default, White, X + 310, startY + 6);
+
+            int y = startY + 30;
+
+            List<BaseWindow> windows = windowManager.GetWindows();
 
             for (int i = 0; i < windows.Count; i++)
             {
-                var win = windows[i];
+                BaseWindow win = windows[i];
 
-                // Alternance de couleur pour les lignes (plus lisible)
-                if (i % 2 == 0)
-                {
-                    canvas.DrawFilledRectangle(new Pen(colorRowAlt), X + 10, yOffset - 2, Width - 20, 18);
-                }
+                if (win == null)
+                    continue;
 
-                string status = win.IsMinimized ? "Reduit" : "Actif";
+                canvas.DrawFilledRectangle(Dark, X + 10, y - 2, Width - 20, 20);
 
-                // Dessin d'une ligne de processus
-                canvas.DrawString(win.Title, PCScreenFont.Default, StyleManager.TextLime, X + 15, yOffset);
-                canvas.DrawString(status, PCScreenFont.Default, StyleManager.TextWhite, X + 200, yOffset);
-                canvas.DrawString("#" + i, PCScreenFont.Default, new Pen(Color.Gray), X + 330, yOffset);
+                canvas.DrawString(win.Title, PCScreenFont.Default, Green, X + 15, y);
+                canvas.DrawString(GetWindowMemory(win) + " MB", PCScreenFont.Default, White, X + 180, y);
+                canvas.DrawString("#" + i, PCScreenFont.Default, Gray, X + 240, y);
 
-                yOffset += 20;
+                canvas.DrawFilledRectangle(Red, X + 310, y - 3, 55, 18);
+                canvas.DrawString("Kill", PCScreenFont.Default, White, X + 320, y);
 
-                // Sécurité pour ne pas dépasser de la fenêtre si trop de processus
-                if (yOffset > Y + Height - 100) break;
+                y += 24;
+
+                if (y > Y + Height - 20)
+                    break;
             }
-
-            // --- SECTION : GRAPHIQUE DE LA MÉMOIRE RAM ---
-            DrawMemoryGraph(canvas);
         }
 
-        private void DrawMemoryGraph(Canvas canvas)
+        private void KillProcessClick(int mx, int my)
         {
-            int graphY = Y + Height - 80;
-            int margin = 20;
-            int barWidth = Width - (margin * 2);
-            int barHeight = 22;
+            int startY = Y + 120;
+            List<BaseWindow> windows = windowManager.GetWindows();
 
-            uint totalRamMB = Cosmos.Core.CPU.GetAmountOfRAM();
-            uint usedRamMB = (uint)Cosmos.Core.GCImplementation.GetUsedRAM() / 1024 / 1024;
-
-            float usageRatio = (float)usedRamMB / (float)totalRamMB;
-            if (usageRatio > 1.0f) usageRatio = 1.0f;
-
-            int fillWidth = (int)(usageRatio * barWidth);
-            int percent = (int)(usageRatio * 100);
-
-            canvas.DrawString($"Memoire : {usedRamMB} MB / {totalRamMB} MB", PCScreenFont.Default, StyleManager.TextWhite, X + margin, graphY - 20);
-
-            // Correction ici : Color -> Pen
-            canvas.DrawFilledRectangle(new Pen(colorGraphBg), X + margin, graphY, barWidth, barHeight);
-
-            Color colorBar = Color.Lime;
-            if (percent > 70) colorBar = Color.Orange;
-            if (percent > 90) colorBar = Color.Red;
-
-            if (fillWidth > 0)
+            for (int i = 0; i < windows.Count; i++)
             {
-                // Correction ici : Color -> Pen
-                canvas.DrawFilledRectangle(new Pen(colorBar), X + margin, graphY, fillWidth, barHeight);
-            }
+                int y = startY + i * 24;
 
-            canvas.DrawString($"{percent}%", PCScreenFont.Default, new Pen(Color.Black), X + (Width / 2) - 10, graphY + 4);
+                bool onKill =
+                    mx >= X + 310 &&
+                    mx <= X + 365 &&
+                    my >= y - 3 &&
+                    my <= y + 15;
+
+                if (onKill)
+                {
+                    BaseWindow win = windows[i];
+
+                    if (win == this)
+                        return;
+
+                    win.IsClosed = true;
+                    return;
+                }
+            }
+        }
+
+        private int GetWindowMemory(BaseWindow win)
+        {
+            if (win.Title == "FilSys Studio")
+                return 12;
+
+            if (win.Title == "Task Manager")
+                return 3;
+
+            return 5;
+        }
+
+        private int GetFakeCpuPercent()
+        {
+            int cpu = windowManager.Count * 8;
+
+            if (cpu < 1)
+                cpu = 1;
+
+            if (cpu > 100)
+                cpu = 100;
+
+            return cpu;
+        }
+
+        private void UpdateFPS()
+        {
+            frameCounter++;
+
+            int second = DateTime.Now.Second;
+
+            if (second != lastSecond)
+            {
+                fps = frameCounter;
+                frameCounter = 0;
+                lastSecond = second;
+            }
         }
     }
 }
